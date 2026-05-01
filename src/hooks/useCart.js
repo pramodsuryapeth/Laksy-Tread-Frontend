@@ -1,43 +1,87 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  addCart,
+  getCart,
+  removeFromCart as removeCartAPI,
+  updateCart as updateCartAPI,
+} from "../services/cartService";
 
 export function useCart() {
-  // ✅ direct initialization (no useEffect)
-  const [cart, setCart] = useState(() => {
+  const [cart, setCart] = useState([]);
+
+  // ✅ stable fetch function
+  const fetchCart = useCallback(async () => {
     try {
-      const stored = localStorage.getItem("cart");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
+      const data = await getCart();
+      setCart(data.items || []);
+    } catch (err) {
+      console.error("Cart fetch error:", err);
     }
-  });
+  }, []);
 
-  const save = (items) => {
-    setCart(items);
-    localStorage.setItem("cart", JSON.stringify(items));
-  };
+  // ✅ FIXED useEffect (NO WARNING)
+  useEffect(() => {
+    const init = async () => {
+      await fetchCart();
+    };
 
-  const addToCart = (item) => {
-    const exists = cart.find(
-      (c) =>
-        c.productId === item.productId &&
-        c.size === item.size &&
-        c.color === item.color
-    );
+    init(); // 👈 async wrapper
 
-    if (exists) {
-      const updated = cart.map((c) =>
-        c === exists ? { ...c, qty: c.qty + 1 } : c
-      );
-      save(updated);
-    } else {
-      save([...cart, { ...item, qty: 1 }]);
+    const handler = () => fetchCart();
+
+    window.addEventListener("cartUpdated", handler);
+
+    return () => {
+      window.removeEventListener("cartUpdated", handler);
+    };
+  }, [fetchCart]);
+
+  // ✅ Add
+  const addToCart = async (item) => {
+    try {
+      const res = await addCart(item);
+      setCart(res.items || []);
+
+      window.dispatchEvent(new Event("cartUpdated"));
+    } catch (err) {
+      console.error("Add cart error:", err);
+      throw err;
     }
   };
 
-  const removeFromCart = (index) => {
-    const updated = cart.filter((_, i) => i !== index);
-    save(updated);
+  // ✅ Remove
+  const removeFromCart = async (variantId) => {
+    try {
+      const res = await removeCartAPI({ variantId });
+      setCart(res.items || []);
+
+      window.dispatchEvent(new Event("cartUpdated"));
+    } catch (err) {
+      console.error("Remove error:", err);
+    }
   };
 
-  return { cart, addToCart, removeFromCart };
+  // ✅ Update qty
+  const updateQuantity = async (variantId, quantity) => {
+  try {
+    const res = await updateCartAPI({
+      variantId,   // 🔥 FIX
+      quantity,
+    });
+
+    setCart(res.items || []);
+
+    window.dispatchEvent(new Event("cartUpdated"));
+  } catch (err) {
+    console.error("Update error:", err);
+  }
+};
+
+  return {
+    cart,
+    cartCount: cart.length,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+  };
 }

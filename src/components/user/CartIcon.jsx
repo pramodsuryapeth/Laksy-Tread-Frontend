@@ -10,10 +10,9 @@ function CartIcon({ count = 0 }) {
     >
       🛒
 
-      {/* Badge */}
       {count > 0 && (
         <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-          {count}
+          {count > 99 ? "99+" : count}
         </span>
       )}
     </button>

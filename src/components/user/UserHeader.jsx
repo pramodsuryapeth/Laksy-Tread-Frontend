@@ -5,11 +5,13 @@ import { useAuth } from "../../hooks/useAuth";
 import { useModal } from "../../hooks/useModal";
 import Modal from "../common/Modal";
 import UserLogin from "./UserLogin";
+import { useCart } from "../../hooks/useCart";
 
 function UserHeader() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { open, openModal, closeModal } = useModal();
+  const { cartCount } = useCart();
 
   return (
     <>
@@ -32,7 +34,7 @@ function UserHeader() {
             <div className="flex items-center gap-4 sm:gap-6">
               
               {/* Cart Icon – with improved badge styling (count passed from CartIcon itself) */}
-              <CartIcon />
+             <CartIcon count={cartCount}  />
 
               {/* User area */}
               {user ? (

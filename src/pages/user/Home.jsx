@@ -15,16 +15,16 @@ function Home() {
     const fetchProducts = async () => {
       try {
         const res = await getProducts();
+        console.log("Products fetched:", res.data);
 
         const allVariants = (res?.data || []).flatMap((product) =>
-          (product?.variants || []).map((variant, i) => ({
-            ...variant,
-            _id: `${product._id}-${i}`,
-            productName: product.name,
-            productId: product._id,
-            images: variant.images || [],
-          }))
-        );
+  (product?.variants || []).map((variant) => ({
+    ...variant, // ✅ keep original Mongo _id
+    productName: product.name,
+    productId: product._id,
+    images: variant.images || [],
+  }))
+);
 
         setVariants(allVariants);
       } catch (err) {

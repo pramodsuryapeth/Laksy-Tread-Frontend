@@ -4,12 +4,15 @@ import { getProducts, getVariants } from "../../services/productService";
 import { CanvasProvider } from "../../context/CanvasProvider";
 import TshirtDesigner from "../../components/common/TshirtDesigner";
 import Loading from "../../components/common/Loader";
+import { useLocation } from "react-router-dom";
 
 function CustomizeProduct() {
   const { productId } = useParams();
   const navigate = useNavigate();
-
-  const [product, setProduct] = useState(null);
+  const { state } = useLocation(); 
+const size = state?.selectedSize;   // ✅ IMPORTANT
+const images = state?.images;
+const [product, setProduct] = useState(state?.product || null);
   const [variants, setVariants] = useState([]);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +26,7 @@ const currentBgImage =
   variantImages[currentIndex] || "/tshirt-mockup.png";
 
   // Fetch product & variants
+  
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -203,7 +207,12 @@ const handleImageChange = (imgUrl, index) => {
     imageKey={`${selectedVariant._id}-${currentIndex}`}
     onProviderReady={handleProviderReady}
   >
-    <TshirtDesigner />
+<TshirtDesigner
+  product={product}
+  variant={selectedVariant}   // ✅ FIX
+  size={size}
+  images={images}
+/>
   </CanvasProvider>
 </div>
 

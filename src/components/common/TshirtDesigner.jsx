@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCanvas } from '../../context/CanvasContext';
 
 // ─── Small reusable UI atoms ──────────────────────────────────────────────────
@@ -337,7 +338,8 @@ const LeftPanel = ({ ctx, onClose }) => {
 
 // ─── RIGHT PANEL content ──────────────────────────────────────────────────────
 
-const RightPanel = ({ ctx, onDownload, onAddToCart }) => {
+// ✅ onBuyNow prop added — addToCart removed
+const RightPanel = ({ ctx, onDownload, onBuyNow }) => {
   const jsonRef = useRef(null);
   const [openSection, setOpenSection] = useState('history');
 
@@ -456,13 +458,13 @@ const RightPanel = ({ ctx, onDownload, onAddToCart }) => {
         </ToolBtn>
       </>)}
 
-      {/* CART */}
-      {section('cart', '🛒 Cart', <>
-        <ToolBtn onClick={onAddToCart}
-          className="w-full bg-indigo-600 text-white hover:bg-indigo-700 py-3">
-          🛍 Add to Cart
+      {/* ✅ BUY NOW — addToCart section removed, replaced with Buy Now */}
+      {section('buynow', '⚡ Buy Now', <>
+        <ToolBtn onClick={onBuyNow}
+          className="w-full bg-green-600 text-white hover:bg-green-700 py-3">
+          ⚡ Buy Now
         </ToolBtn>
-        <p className="text-xs text-gray-400 text-center">Design is saved per shirt view</p>
+        <p className="text-xs text-gray-400 text-center">All pages (front &amp; back) included</p>
       </>)}
 
     </div>
@@ -471,13 +473,16 @@ const RightPanel = ({ ctx, onDownload, onAddToCart }) => {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
-const TshirtDesigner = () => {
+const TshirtDesigner = ({ product,variant, size, images }) => {
   const canvasElRef = useRef(null);
   const [leftDrawerOpen,  setLeftDrawerOpen]  = useState(false);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
 
   const ctx = useCanvas();
   const { initCanvas, canvasRef, undo, redo, canUndo, canRedo } = ctx;
+
+  // ✅ useNavigate inside component
+  const navigate = useNavigate();
 
   // ── init fabric canvas ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -494,30 +499,93 @@ const TshirtDesigner = () => {
     }
   }, []);
 
-  const getHighResDataURL = useCallback(() => {
-    if (!canvasRef.current) return null;
-    return canvasRef.current.toDataURL({ format: 'png', quality: 1, multiplier: 2 });
-  }, [canvasRef]);
+  // ✅ getAllDesignImages — reads page.json directly (no canvas switching needed)
+  //    Works because switchPage() always saves current page JSON before switching
+  const getAllDesignImages = useCallback(async () => {
+    if (!canvasRef.current) return [];
+
+    const fabric = canvasRef.current;
+    const designImages = [];
+
+    // 🔥 STEP 1: Save current active page JSON first (it may not be saved yet)
+    const currentPageObj = ctx.pages.find(p => p.id === ctx.activePage);
+    if (currentPageObj) {
+      currentPageObj.json = fabric.toJSON();
+    }
+
+    // 🔥 STEP 2: Loop all pages, load each JSON into a temp offscreen render
+    for (const page of ctx.pages) {
+      const json = page.json;
+
+      if (!json || !json.objects || json.objects.length === 0) {
+        // Empty page — capture blank canvas
+        fabric.clear();
+        fabric.renderAll();
+      } else {
+        // Load this page's JSON into canvas
+        await new Promise((resolve) => {
+          fabric.loadFromJSON(json, () => {
+            fabric.renderAll();
+            resolve();
+          });
+        });
+      }
+
+      // Small wait to ensure paint is complete
+      await new Promise((r) => setTimeout(r, 80));
+
+      const url = fabric.toDataURL({ format: 'png', quality: 1, multiplier: 2 });
+      designImages.push(url);
+    }
+
+    // 🔒 STEP 3: Restore the original active page back on canvas
+    if (currentPageObj?.json) {
+      await new Promise((resolve) => {
+        fabric.loadFromJSON(currentPageObj.json, () => {
+          fabric.renderAll();
+          resolve();
+        });
+      });
+    }
+
+    return designImages;
+  }, [canvasRef, ctx]);
+
+  // ✅ handleBuyNow
+  const handleBuyNow = useCallback(async () => {
+    const designImages = await getAllDesignImages();
+
+    navigate('/checkout', {
+      state: {
+        selectedItems: [
+          {
+            productId: product?._id,
+            variantId: variant?._id,
+            name: product?.name,
+            price: variant?.price,
+            size,
+            color: variant?.color,
+            image: images?.[0],
+            quantity: 1,
+            designImage: designImages, // ✅ [page1.png, page2.png, ...]
+          },
+        ],
+        fromCart: false,
+      },
+    });
+
+    closeMobileDrawers();
+  }, [getAllDesignImages, navigate, product, variant, size, images, closeMobileDrawers]);
 
   const downloadImage = useCallback(() => {
-    const url = getHighResDataURL();
-    if (!url) return;
+    if (!canvasRef.current) return;
+    const url = canvasRef.current.toDataURL({ format: 'png', quality: 1, multiplier: 2 });
     const a = document.createElement('a');
     a.href = url;
     a.download = 'tshirt-design.png';
     a.click();
     closeMobileDrawers();
-  }, [getHighResDataURL, closeMobileDrawers]);
-
-  const addToCart = useCallback(async () => {
-    const url = getHighResDataURL();
-    if (!url) return;
-    const blob = await (await fetch(url)).blob();
-    const file = new File([blob], 'design.png', { type: 'image/png' });
-    console.log('Add to cart:', file);
-    alert('Design added to cart!');
-    closeMobileDrawers();
-  }, [getHighResDataURL, closeMobileDrawers]);
+  }, [canvasRef, closeMobileDrawers]);
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
@@ -531,7 +599,7 @@ const TshirtDesigner = () => {
           <span className="text-xs text-gray-500 hidden sm:inline">Design your own</span>
         </div>
 
-        {/* Undo/Redo in top bar for quick access */}
+        {/* Undo / Redo + Download + Buy Now */}
         <div className="flex items-center gap-2">
           <button onClick={undo} disabled={!canUndo}
             title="Undo (Ctrl+Z)"
@@ -546,9 +614,10 @@ const TshirtDesigner = () => {
             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-md touch-manipulation">
             📸 Download
           </button>
-          <button onClick={addToCart}
-            className="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-md touch-manipulation">
-            🛒 Add to Cart
+          {/* ✅ Buy Now button in top bar */}
+          <button onClick={handleBuyNow}
+            className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md touch-manipulation">
+            ⚡ Buy Now
           </button>
         </div>
       </header>
@@ -638,14 +707,14 @@ const TshirtDesigner = () => {
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</span>
           </div>
           <div className="p-4 flex-1 overflow-y-auto">
-            <RightPanel ctx={ctx} onDownload={downloadImage} onAddToCart={addToCart} />
+            <RightPanel ctx={ctx} onDownload={downloadImage} onBuyNow={handleBuyNow} />
           </div>
         </aside>
 
         {/* ── RIGHT DRAWER (mobile) ────────────────────────────────────── */}
         <Drawer isOpen={rightDrawerOpen} onClose={() => setRightDrawerOpen(false)}
           title="Actions" position="right">
-          <RightPanel ctx={ctx} onDownload={downloadImage} onAddToCart={addToCart} />
+          <RightPanel ctx={ctx} onDownload={downloadImage} onBuyNow={handleBuyNow} />
         </Drawer>
 
       </div>

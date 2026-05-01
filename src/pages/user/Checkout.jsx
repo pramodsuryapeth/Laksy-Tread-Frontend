@@ -50,7 +50,8 @@ function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [orderData, setOrderData] = useState({
-    product: state?.product || state,
+    items: state?.selectedItems || [],   // 🔥 SAME FOR CART + BUY NOW
+    fromCart: state?.fromCart || false,
     address: {
       name: "",
       email: "",
@@ -118,16 +119,20 @@ function Checkout() {
 
   // ---------- Calculate Charges ----------
   const calculateCharges = () => {
-    const price = orderData.product?.price || 0;
+    const productTotal = orderData.items.reduce(
+      (acc, item) => acc + item.price * item.quantity,
+      0
+    );
     const delivery = orderData.deliveryType === "delivery" ? 50 : 0;
-    const gst = Math.round(price * 0.18);
+    const gst = 0;
+
     setOrderData((prev) => ({
       ...prev,
       charges: {
-        productTotal: price,
+        productTotal,
         deliveryCharge: delivery,
         gst,
-        finalAmount: price + delivery + gst,
+        finalAmount: productTotal + delivery + gst,
       },
     }));
   };
@@ -154,23 +159,26 @@ function Checkout() {
               ...response,
               orderData: {
                 user: orderData.address,
-                items: [
-                  {
-                    productId: orderData.product.productId,
-                    name: orderData.product.name,
-                    price: orderData.product.price,
-                    quantity: 1,
-                    image: orderData.product.image,
-                    size: orderData.product.size,
-                    color: orderData.product.color,
-                    uploadedImages: orderData.uploadedFiles.map((f) => f.name),
-                    note: orderData.note,
-                  },
-                ],
+                // ✅ designImage included in backend payload
+                items: orderData.items.map((item) => ({
+                  productId: item.productId,
+                  variantId: item.variantId,
+                  name: item.name,
+                  price: item.price,
+                  quantity: item.quantity,
+                  image: item.image,
+                  size: item.size,
+                  color: item.color,
+                  designImage: item.designImage, // 🔥 ARRAY ["front.png", "back.png"]
+                })),
+                uploadedFiles: orderData.uploadedFiles.map((f) => f.name),
+                note: orderData.note,
                 deliveryType: orderData.deliveryType,
                 charges: orderData.charges,
+                clearCart: orderData.fromCart,
               },
             });
+
             setStep(7);
             showPopup("Payment successful! Order confirmed 🎉", "success");
           } catch (err) {
@@ -205,7 +213,7 @@ function Checkout() {
       address: { ...prev.address, [field]: value },
     }));
   };
-
+console.log("Checkout items 👉", orderData.items);
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <Popup
@@ -223,21 +231,45 @@ function Checkout() {
           <StepIndicator currentStep={step} />
         </div>
 
-        {/* STEP 1 - Product View */}
+        {/* ── STEP 1 — Product Summary ── */}
         {step === 1 && (
           <SectionCard title="Product Summary">
-            <div className="flex gap-4">
-              <img
-                src={orderData.product?.image}
-                alt={orderData.product?.name}
-                className="h-40 w-40 object-cover rounded-lg"
-              />
-              <div className="flex-1">
-                <h2 className="text-xl font-semibold">{orderData.product?.name}</h2>
-                <p className="text-2xl font-bold mt-2">₹{orderData.product?.price}</p>
-                {orderData.product?.size && <p className="text-gray-600">Size: {orderData.product.size}</p>}
-                {orderData.product?.color && <p className="text-gray-600">Color: {orderData.product.color}</p>}
-              </div>
+            <div className="space-y-4">
+              {orderData.items.map((item) => (
+                <div key={item.variantId} className="flex gap-4 pb-4 border-b last:border-0">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="h-24 w-24 object-cover rounded-lg"
+                  />
+                  <div className="flex-1">
+                    <h2 className="text-xl font-semibold">{item.name}</h2>
+                    <p className="text-gray-600">
+                      {item.size && `Size: ${item.size}`}
+                      {item.color && ` | Color: ${item.color}`}
+                    </p>
+                    <p className="text-gray-600">Qty: {item.quantity}</p>
+                    <p className="text-2xl font-bold mt-2">₹{item.price}</p>
+
+                    {/* ✅ Design preview — front + back thumbnails */}
+                    {item.designImage?.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-500 mb-1">Design:</p>
+                        <div className="flex gap-2">
+                          {item.designImage.map((img, i) => (
+                            <img
+                              key={i}
+                              src={img}
+                              alt={`Design ${i + 1}`}
+                              className="w-16 h-16 border rounded object-cover"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
             <button
               onClick={() => setStep(2)}
@@ -248,7 +280,7 @@ function Checkout() {
           </SectionCard>
         )}
 
-        {/* STEP 2 - Address Details */}
+        {/* ── STEP 2 — Address Details ── */}
         {step === 2 && (
           <SectionCard title="Delivery Address">
             <div className="space-y-4">
@@ -310,9 +342,7 @@ function Checkout() {
                 Back
               </button>
               <button
-                onClick={() => {
-                  if (validateAddress()) setStep(3);
-                }}
+                onClick={() => { if (validateAddress()) setStep(3); }}
                 className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800"
               >
                 Next → Delivery
@@ -321,7 +351,7 @@ function Checkout() {
           </SectionCard>
         )}
 
-        {/* STEP 3 - Delivery Option */}
+        {/* ── STEP 3 — Delivery Option ── */}
         {step === 3 && (
           <SectionCard title="Choose Delivery Method">
             <div className="space-y-3">
@@ -381,7 +411,7 @@ function Checkout() {
           </SectionCard>
         )}
 
-        {/* STEP 4 - Upload PDF + Note */}
+        {/* ── STEP 4 — Upload PDF + Note ── */}
         {step === 4 && (
           <SectionCard title="Additional Information">
             <div className="space-y-4">
@@ -426,10 +456,7 @@ function Checkout() {
                 Back
               </button>
               <button
-                onClick={() => {
-                  calculateCharges();
-                  setStep(5);
-                }}
+                onClick={() => { calculateCharges(); setStep(5); }}
                 className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800"
               >
                 Next → Review
@@ -438,28 +465,51 @@ function Checkout() {
           </SectionCard>
         )}
 
-        {/* STEP 5 - Order Review */}
+        {/* ── STEP 5 — Order Review ── */}
         {step === 5 && (
           <SectionCard title="Order Summary">
             <div className="space-y-4">
-              <div className="flex gap-4 pb-4 border-b">
-                <img
-                  src={orderData.product?.image}
-                  alt={orderData.product?.name}
-                  className="h-20 w-20 object-cover rounded"
-                />
-                <div className="flex-1">
-                  <p className="font-semibold">{orderData.product?.name}</p>
-                  <p className="text-gray-600">Quantity: 1</p>
-                  <p className="font-semibold">₹{orderData.product?.price}</p>
+              {orderData.items.map((item) => (
+                <div key={item.variantId} className="flex gap-4 pb-4 border-b">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="h-20 w-20 object-cover rounded"
+                  />
+                  <div className="flex-1">
+                    <p className="font-semibold">{item.name}</p>
+                    {item.size && <p className="text-gray-600">Size: {item.size}</p>}
+                    {item.color && <p className="text-gray-600">Color: {item.color}</p>}
+                    <p className="text-gray-600">Qty: {item.quantity}</p>
+                    <p className="font-semibold">₹{item.price}</p>
+
+                    {/* ✅ Design preview — front + back thumbnails */}
+                    {item.designImage?.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-500 mb-1">Design:</p>
+                        <div className="flex gap-2">
+                          {item.designImage.map((img, i) => (
+                            <img
+                              key={i}
+                              src={img}
+                              alt={`Design ${i + 1}`}
+                              className="w-14 h-14 border rounded object-cover"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ))}
+
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Delivery Address:</span>
                   <span className="text-right">
-                    {orderData.address.name}, {orderData.address.addressLine}, {orderData.address.city},{" "}
-                    {orderData.address.state} - {orderData.address.pincode}
+                    {orderData.address.name}, {orderData.address.addressLine},{" "}
+                    {orderData.address.city}, {orderData.address.state} -{" "}
+                    {orderData.address.pincode}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -481,6 +531,7 @@ function Checkout() {
                   </div>
                 )}
               </div>
+
               <div className="border-t pt-4 space-y-2">
                 <div className="flex justify-between">
                   <span>Product Total</span>
@@ -517,7 +568,7 @@ function Checkout() {
           </SectionCard>
         )}
 
-        {/* STEP 6 - Payment */}
+        {/* ── STEP 6 — Payment ── */}
         {step === 6 && (
           <SectionCard title="Payment">
             <div className="text-center space-y-4">
@@ -545,7 +596,7 @@ function Checkout() {
           </SectionCard>
         )}
 
-        {/* STEP 7 - Success */}
+        {/* ── STEP 7 — Success ── */}
         {step === 7 && (
           <SectionCard>
             <div className="text-center py-8">
