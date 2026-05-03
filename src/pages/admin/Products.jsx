@@ -97,9 +97,10 @@ function Products() {
 
   // Add variant form
   const [variantForm, setVariantForm] = useState({
-    sizes: [],        // array of strings
+    sizes: [],
     sizeInput: "",
-    color: "",
+    colors: [],       // changed from "color" (string) to array
+    colorInput: "",   // new input for adding colors one by one
     price: "",
     stock: "",
   });
@@ -107,7 +108,9 @@ function Products() {
   // Edit variant form
   const [editingVariant, setEditingVariant] = useState(null);
   const [editingVariantSizes, setEditingVariantSizes] = useState([]);
+  const [editingVariantColors, setEditingVariantColors] = useState([]);
   const [editSizeInput, setEditSizeInput] = useState("");
+  const [editColorInput, setEditColorInput] = useState("");
 
   // Edit product form
   const [editForm, setEditForm] = useState({ name: "", description: "" });
@@ -228,7 +231,7 @@ function Products() {
     setProductUpdatePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ---------- ADD VARIANT: manage sizes as array ----------
+  // ---------- ADD VARIANT: manage sizes & colors as arrays ----------
   const addSize = () => {
     const trimmed = variantForm.sizeInput.trim();
     if (!trimmed) return;
@@ -250,12 +253,34 @@ function Products() {
     });
   };
 
+  const addColor = () => {
+    const trimmed = variantForm.colorInput.trim();
+    if (!trimmed) return;
+    if (variantForm.colors.includes(trimmed)) {
+      showPopup("Color already added", "error");
+      return;
+    }
+    setVariantForm({
+      ...variantForm,
+      colors: [...variantForm.colors, trimmed],
+      colorInput: "",
+    });
+  };
+
+  const removeColor = (index) => {
+    setVariantForm({
+      ...variantForm,
+      colors: variantForm.colors.filter((_, i) => i !== index),
+    });
+  };
+
   const handleAddVariant = (id) => {
     setSelectedProductId(id);
     setVariantForm({
       sizes: [],
       sizeInput: "",
-      color: "",
+      colors: [],
+      colorInput: "",
       price: "",
       stock: "",
     });
@@ -264,7 +289,7 @@ function Products() {
     setIsAddVariantModalOpen(true);
   };
 
-  // ---------- EDIT VARIANT: manage sizes as array ----------
+  // ---------- EDIT VARIANT: manage sizes & colors as arrays ----------
   const addEditSize = () => {
     const trimmed = editSizeInput.trim();
     if (!trimmed) return;
@@ -280,14 +305,37 @@ function Products() {
     setEditingVariantSizes(editingVariantSizes.filter((_, i) => i !== index));
   };
 
+  const addEditColor = () => {
+    const trimmed = editColorInput.trim();
+    if (!trimmed) return;
+    if (editingVariantColors.includes(trimmed)) {
+      showPopup("Color already added", "error");
+      return;
+    }
+    setEditingVariantColors([...editingVariantColors, trimmed]);
+    setEditColorInput("");
+  };
+
+  const removeEditColor = (index) => {
+    setEditingVariantColors(editingVariantColors.filter((_, i) => i !== index));
+  };
+
   const handleEditVariant = (variant) => {
     // Convert variant.sizes to array (supports string or array)
     let sizesArray = [];
     if (Array.isArray(variant.sizes)) sizesArray = [...variant.sizes];
     else if (typeof variant.sizes === "string" && variant.sizes) sizesArray = variant.sizes.split(",").map(s => s.trim());
+
+    // Convert variant.colors to array (supports string or array)
+    let colorsArray = [];
+    if (Array.isArray(variant.colors)) colorsArray = [...variant.colors];
+    else if (typeof variant.colors === "string" && variant.colors) colorsArray = variant.colors.split(",").map(c => c.trim());
+
     setEditingVariant({ ...variant });
     setEditingVariantSizes(sizesArray);
+    setEditingVariantColors(colorsArray);
     setEditSizeInput("");
+    setEditColorInput("");
     setEditVariantImages([]);
     setEditVariantPreviews([]);
   };
@@ -319,7 +367,8 @@ function Products() {
       formData.append("variantId", editingVariant._id);
       // Send sizes as JSON string (array)
       formData.append("sizes", JSON.stringify(editingVariantSizes));
-      formData.append("color", editingVariant.color);
+      // Send colors as JSON string (array)
+      formData.append("colors", JSON.stringify(editingVariantColors));
       formData.append("price", editingVariant.price);
       formData.append("stock", editingVariant.stock);
       editVariantImages.forEach((img) => formData.append("images", img));
@@ -377,15 +426,19 @@ function Products() {
     setVariantImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ADD VARIANT SUBMIT – sends sizes as JSON array
+  // ADD VARIANT SUBMIT – sends sizes & colors as JSON arrays
   const handleVariantSubmit = async (e) => {
     e.preventDefault();
     if (variantForm.sizes.length === 0) {
       showPopup("Please add at least one size", "error");
       return;
     }
-    if (!variantForm.color || !variantForm.price || !variantForm.stock) {
-      showPopup("Please fill all variant fields", "error");
+    if (variantForm.colors.length === 0) {
+      showPopup("Please add at least one color", "error");
+      return;
+    }
+    if (!variantForm.price || !variantForm.stock) {
+      showPopup("Please fill price and stock", "error");
       return;
     }
     setIsVariantSubmitting(true);
@@ -393,14 +446,14 @@ function Products() {
       const formData = new FormData();
       formData.append("productId", selectedProductId);
       formData.append("sizes", JSON.stringify(variantForm.sizes));
-      formData.append("color", variantForm.color);
+      formData.append("colors", JSON.stringify(variantForm.colors));
       formData.append("price", variantForm.price);
       formData.append("stock", variantForm.stock);
       variantImages.forEach((img) => formData.append("images", img));
       await addVariant(formData);
       await refreshProducts();
       setIsAddVariantModalOpen(false);
-      showPopup(`Variant added with sizes: ${variantForm.sizes.join(", ")}`, "success");
+      showPopup(`Variant added with sizes: ${variantForm.sizes.join(", ")} | Colors: ${variantForm.colors.join(", ")}`, "success");
     } catch (err) {
       showPopup(getErrorMessage(err), "error");
     } finally {
@@ -592,13 +645,30 @@ function Products() {
                               ))}
                             </div>
                           </div>
-                          <input
-                            type="text"
-                            value={editingVariant.color}
-                            onChange={(e) => setEditingVariant({ ...editingVariant, color: e.target.value })}
-                            className="w-full px-3 py-2 border rounded-lg"
-                            placeholder="Color"
-                          />
+
+                          {/* Colors as chips */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Colors (add one by one)</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="e.g., Red, Blue, Green"
+                                value={editColorInput}
+                                onChange={(e) => setEditColorInput(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg"
+                              />
+                              <button type="button" onClick={addEditColor} className="px-3 bg-black text-white rounded">Add</button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {editingVariantColors.map((c, idx) => (
+                                <div key={idx} className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">
+                                  {c}
+                                  <button type="button" onClick={() => removeEditColor(idx)} className="text-red-500">✕</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
                           <input
                             type="number"
                             value={editingVariant.price}
@@ -645,7 +715,9 @@ function Products() {
                               <p className="font-medium text-gray-800">
                                 Sizes: {Array.isArray(variant.sizes) ? variant.sizes.join(", ") : variant.sizes}
                               </p>
-                              <p className="text-sm text-gray-500">{variant.color}</p>
+                              <p className="text-sm text-gray-500">
+                                Colors: {Array.isArray(variant.colors) ? variant.colors.join(", ") : variant.colors}
+                              </p>
                               <p className="text-sm text-gray-500 mt-1">₹{variant.price} • Stock: {variant.stock}</p>
                             </div>
                             <div className="flex gap-2">
@@ -687,7 +759,7 @@ function Products() {
         <ImageCarousel images={selectedCarouselImages} onClose={() => setIsVariantCarouselOpen(false)} />
       )}
 
-      {/* Add Variant Modal – with sizes as array */}
+      {/* Add Variant Modal – with sizes & colors as chips */}
       {isAddVariantModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-[95%] max-w-md max-h-[90vh] overflow-y-auto">
@@ -721,16 +793,29 @@ function Products() {
                 )}
               </div>
 
+              {/* Colors as chips */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Red, Blue, Black"
-                  value={variantForm.color}
-                  onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                  required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Colors (add one by one)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g., Red, Blue, Black"
+                    value={variantForm.colorInput}
+                    onChange={(e) => setVariantForm({ ...variantForm, colorInput: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  />
+                  <button type="button" onClick={addColor} className="px-3 bg-black text-white rounded">Add</button>
+                </div>
+                {variantForm.colors.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {variantForm.colors.map((c, idx) => (
+                      <div key={idx} className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">
+                        {c}
+                        <button type="button" onClick={() => removeColor(idx)} className="text-red-500">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -781,7 +866,7 @@ function Products() {
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setIsAddVariantModalOpen(false)} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
                 <button type="submit" disabled={isVariantSubmitting} className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg disabled:opacity-50">
-                  {isVariantSubmitting ? "Adding..." : `Add Variant (${variantForm.sizes.length} size${variantForm.sizes.length !== 1 ? "s" : ""})`}
+                  {isVariantSubmitting ? "Adding..." : `Add Variant (${variantForm.sizes.length} size${variantForm.sizes.length !== 1 ? "s" : ""}, ${variantForm.colors.length} color${variantForm.colors.length !== 1 ? "s" : ""})`}
                 </button>
               </div>
             </form>
