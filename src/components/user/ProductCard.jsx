@@ -67,6 +67,11 @@ function ProductCard({ product, onProtectedAction }) {
   const handleBuy = (e) => {
     e.stopPropagation();
 
+     if (product.sizes && product.sizes.length > 1) {
+      setShowSizePopup(true);
+      return;
+    }
+
     const size = product.size || product.sizes?.[0];
 
     const action = () => {
