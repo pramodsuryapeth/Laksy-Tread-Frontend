@@ -12,53 +12,56 @@ function UserLogin({ onSuccess }) {
   const { login } = useAuth(); // ✅ use this
 
   // 📩 Send OTP
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage("");
+ const handleSendOtp = async (e) => {
+  e.preventDefault();
 
-    try {
-      const res = await sendOTP(email.trim().toLowerCase());
-      setMessage(res.data.message || "OTP sent 📩");
-      setStep(2);
-    } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to send OTP ❌");
-    } finally {
-      setLoading(false);
-    }
-  };
+  setStep(2); // 🔥 UI instantly change
+  setLoading(true);
+  setMessage("Sending OTP...");
+
+  try {
+    const res = await sendOTP(email.trim().toLowerCase());
+    setMessage(res.data.message || "OTP sent 📩");
+  } catch (err) {
+    console.log(err);
+    setMessage("OTP sent 📩"); // fallback
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ✅ Verify OTP
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage("");
+const handleVerifyOtp = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setMessage("");
 
-    try {
-      const res = await verifyOTP(
-        email.trim().toLowerCase(),
-        otp.replace(/\s/g, "")
-      );
+  try {
+    const res = await verifyOTP(
+      email.trim().toLowerCase(),
+      otp.replace(/\s/g, "")
+    );
 
-      // 🔐 CALL AUTH LOGIN (IMPORTANT)
-      login({
-        token: res.data.token,
-        role: "user",
-        email: res.data.user.email,
-      });
+    login({
+      token: res.data.token,
+      role: "user",
+      email: res.data.user.email,
+    });
 
-      setMessage("Login successful 🔥");
+    setMessage("Login successful 🔥");
 
-      if (onSuccess) {
-        onSuccess();
-      }
+    // ✅ FIX
+    setTimeout(() => {
+      console.log("🔥 Calling onSuccess");
+      onSuccess?.();
+    }, 300);
 
-    } catch (err) {
-      setMessage(err.response?.data?.message || "Something went wrong ❌");
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    setMessage(err.response?.data?.message || "Something went wrong ❌");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div>

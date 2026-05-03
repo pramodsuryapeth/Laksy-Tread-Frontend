@@ -39,23 +39,33 @@ function Home() {
   }, []);
 
   // 🔐 PROTECTED ACTION (FINAL FIX)
-  const handleProtectedAction = (callback) => {
-    console.log("🔥 Protected clicked");
+const handleProtectedAction = (callback) => {
+  console.log("🔥 Protected clicked");
 
-    const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token");
 
-    // 🔥 SAFE CHECK
-    if (!token || token === "undefined" || token === "null") {
-      console.log("❌ No valid token → open login");
+  // 🔥 clean check
+  const isValidToken =
+    token && token !== "undefined" && token !== "null";
 
-      setShowLogin(true);
-      setPendingAction(() => callback);
-      return;
-    }
+  if (!isValidToken) {
+    console.log("❌ No valid token → open login");
 
-    console.log("✅ Token found → run action");
-    callback();
-  };
+    setShowLogin(true);
+
+    // ✅ store callback properly
+    setPendingAction(() => callback);
+
+    return;
+  }
+
+  console.log("✅ Token found → run action");
+
+  // 🔥 EXTRA SAFETY (close modal if open)
+  setShowLogin(false);
+
+  callback();
+};
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto px-4 py-8">
@@ -80,18 +90,23 @@ function Home() {
               ✕
             </button>
 
-            <UserLogin
-              onSuccess={() => {
-                console.log("✅ Login success");
+           <UserLogin
+  onSuccess={() => {
+    console.log("✅ Login success");
 
-                setShowLogin(false);
+    // 🔥 STEP 1: close modal first
+    setShowLogin(false);
 
-                if (pendingAction) {
-                  pendingAction();
-                  setPendingAction(null);
-                }
-              }}
-            />
+    // 🔥 STEP 2: delay then run action
+    setTimeout(() => {
+      if (pendingAction) {
+        console.log("🔥 Running pending action");
+        pendingAction();
+        setPendingAction(null);
+      }
+    }, 300); // IMPORTANT
+  }}
+/>
           </div>
         </div>
       )}

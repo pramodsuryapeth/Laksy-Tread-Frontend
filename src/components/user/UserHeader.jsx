@@ -25,7 +25,7 @@ function UserHeader() {
               className="cursor-pointer group"
             >
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent group-hover:from-gray-800 group-hover:to-gray-500 transition-all duration-300">
-                LakshyTreade
+                LakshyTrendzz
               </h1>
               <div className="h-0.5 w-0 group-hover:w-full bg-gray-900 transition-all duration-300 mt-0.5 rounded-full" />
             </div>
