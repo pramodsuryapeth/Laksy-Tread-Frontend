@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
+  baseURL: import.meta.env.VITE_API_URL || "https://lakshy-tread-backend.onrender.com/api",
 });
 
 // 🔐 TOKEN ATTACH (USER + ADMIN SAFE)
