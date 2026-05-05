@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import PageWrapper from "../../components/admin/PageWrapper";
 import Popup from "../../components/common/Popup";
-import { updateOrderStatus } from "../../services/orderService";
+import { updateOrderStatus } from "../../services/ordreService";
 import { getErrorMessage } from "../../utils/getErrorMessage";
-
-const USE_DUMMY = true;
+import { getAllOrders } from "../../services/ordreService";
 
 function Orders() {
   const [orders, setOrders] = useState([]);
@@ -15,49 +14,32 @@ function Orders() {
   const [popup, setPopup] = useState({ show: false, message: "", type: "success" });
 
   // Fetch orders (dummy or real)
-  useEffect(() => {
-    const fetchOrders = async () => {
-      setLoading(true);
-      if (USE_DUMMY) {
-        setTimeout(() => {
-          setOrders([
-            {
-              _id: "1",
-              user: { name: "Pramod S", phone: "9876543210", address: "Pune, Maharashtra" },
-              items: [{ name: "T-Shirt", size: "M", color: "Black", quantity: 2, image: "https://via.placeholder.com/100" }],
-              deliveryType: "pickup",
-              status: "received",
-              charges: { finalAmount: 899 },
-              createdAt: new Date(),
-            },
-            {
-              _id: "2",
-              user: { name: "Rahul K", phone: "9123456789", address: "Mumbai, Maharashtra" },
-              items: [{ name: "Shirt", size: "L", color: "Blue", quantity: 1, image: "https://via.placeholder.com/100" }],
-              deliveryType: "delivery",
-              status: "ready",
-              charges: { finalAmount: 1299 },
-              createdAt: new Date(),
-            },
-            {
-              _id: "3",
-              user: { name: "Neha S", phone: "9988776655", address: "Delhi, India" },
-              items: [{ name: "Jeans", size: "32", color: "Blue", quantity: 1, image: "https://via.placeholder.com/100" }],
-              deliveryType: "pickup",
-              status: "confirmed",
-              charges: { finalAmount: 1999 },
-              createdAt: new Date(),
-            },
-          ]);
-          setLoading(false);
-        }, 500);
-      } else {
-        // API call later
-        setLoading(false);
-      }
-    };
-    fetchOrders();
-  }, []);
+useEffect(() => {
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await getAllOrders();
+
+      // 🔥 SAFE FIX
+      const data = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res)
+        ? res
+        : [];
+
+      setOrders(data);
+
+      console.log("ORDERS 👉", data); // debug
+    } catch (err) {
+      console.error("Orders fetch error:", err);
+      setOrders([]); // fallback
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchOrders();
+}, []);
 
   const showPopup = (message, type = "success") => {
     setPopup({ show: true, message, type });
@@ -65,21 +47,33 @@ function Orders() {
   };
 
   // Combined filter: delivery type + status
-  const filteredOrders = orders.filter((order) => {
-    if (activeTab !== "all" && order.deliveryType !== activeTab) return false;
-    if (statusFilter !== "all" && order.status !== statusFilter) return false;
-    return true;
-  });
+ const filteredOrders = (orders || []).filter((order) => {
+  if (activeTab !== "all" && order.deliveryType !== activeTab) return false;
+  if (statusFilter !== "all" && order.status !== statusFilter) return false;
+  return true;
+});
 
-  const handleStatusChange = async (orderId, newStatus) => {
-    try {
-      if (!USE_DUMMY) await updateOrderStatus(orderId, newStatus);
-      setOrders((prev) => prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o)));
-      showPopup(`Order status updated to “${newStatus}”`, "success");
-    } catch (err) {
-      showPopup(getErrorMessage(err), "error");
-    }
-  };
+const handleStatusChange = async (orderId, newStatus) => {
+  try {
+    const safeStatus = newStatus.trim().toLowerCase();
+
+    console.log("Sending 👉", orderId, safeStatus);
+
+    // ✅ FIX HERE
+    await updateOrderStatus(orderId, safeStatus);
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o._id === orderId ? { ...o, status: safeStatus } : o
+      )
+    );
+
+    showPopup(`Order status updated to “${safeStatus}”`, "success");
+
+  } catch (err) {
+    showPopup(getErrorMessage(err), "error");
+  }
+};
 
   const getStatusColor = (status) => ({
     received: "bg-amber-100 text-amber-700",
@@ -228,33 +222,221 @@ function Orders() {
               <button onClick={() => setSelectedOrder(null)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             <div className="p-6 space-y-5">
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                <h4 className="font-medium text-gray-700">Customer Information</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-gray-500">Name:</span><p className="font-medium">{selectedOrder.user.name}</p></div>
-                  <div><span className="text-gray-500">Phone:</span><p className="font-medium">{selectedOrder.user.phone}</p></div>
-                  <div className="sm:col-span-2"><span className="text-gray-500">Address:</span><p className="font-medium">{selectedOrder.user.address}</p></div>
-                </div>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                <h4 className="font-medium text-gray-700">Order Summary</h4>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Delivery Type:</span><span className="font-medium capitalize">{selectedOrder.deliveryType}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Total Amount:</span><span className="font-bold text-gray-800">₹{selectedOrder.charges.finalAmount.toLocaleString()}</span></div>
-                <div className="flex justify-between text-xs text-gray-400 pt-1"><span>Order ID: {selectedOrder._id}</span><span>{new Date(selectedOrder.createdAt).toLocaleString()}</span></div>
-              </div>
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-700">Items</h4>
-                {selectedOrder.items.map((item, idx) => (
-                  <div key={idx} className="flex gap-4 border-b border-gray-100 pb-3 last:border-0">
-                    <img src={item.image || "https://via.placeholder.com/80"} alt={item.name} className="w-20 h-20 rounded-lg object-cover border border-gray-200" />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800">{item.name}</p>
-                      <p className="text-sm text-gray-500">{item.size} / {item.color}</p>
-                      <p className="text-sm text-gray-600 mt-1">Qty: {item.quantity}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="bg-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100">
+  
+  <h4 className="text-md font-semibold text-gray-800 mb-4">
+    👤 Customer Information
+  </h4>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+
+    {/* Name */}
+    <div className="bg-white p-3 rounded-lg border">
+      <p className="text-gray-500 text-xs">Name</p>
+      <p className="font-semibold text-gray-800">
+        {selectedOrder?.user?.name || "N/A"}
+      </p>
+    </div>
+
+    {/* Phone */}
+    <div className="bg-white p-3 rounded-lg border">
+      <p className="text-gray-500 text-xs">Phone</p>
+      <p className="font-semibold text-gray-800">
+        {selectedOrder?.user?.phone || "N/A"}
+      </p>
+    </div>
+
+    {/* Address */}
+    <div className="bg-white p-3 rounded-lg border sm:col-span-2">
+      <p className="text-gray-500 text-xs">Address</p>
+      <p className="font-semibold text-gray-800">
+        {selectedOrder?.user?.address || "N/A"}
+      </p>
+    </div>
+
+    {/* City */}
+    <div className="bg-white p-3 rounded-lg border">
+      <p className="text-gray-500 text-xs">City</p>
+      <p className="font-semibold text-gray-800">
+        {selectedOrder?.user?.city || "N/A"}
+      </p>
+    </div>
+
+    {/* State */}
+    <div className="bg-white p-3 rounded-lg border">
+      <p className="text-gray-500 text-xs">State</p>
+      <p className="font-semibold text-gray-800">
+        {selectedOrder?.user?.state || "N/A"}
+      </p>
+    </div>
+
+    {/* Pincode */}
+    <div className="bg-white p-3 rounded-lg border sm:col-span-2">
+      <p className="text-gray-500 text-xs">Pincode</p>
+      <p className="font-semibold text-gray-800">
+        {selectedOrder?.user?.pincode || "N/A"}
+      </p>
+    </div>
+
+  </div>
+</div>
+             <div className="bg-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100">
+
+  <h4 className="text-md font-semibold text-gray-800 mb-4">
+    🧾 Order Summary
+  </h4>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+
+    {/* Delivery Type */}
+    <div className="bg-white p-3 rounded-lg border">
+      <p className="text-gray-500 text-xs">Delivery Type</p>
+      <p className="font-semibold text-gray-800 capitalize">
+        {selectedOrder?.deliveryType || "N/A"}
+      </p>
+    </div>
+
+    {/* Total Amount */}
+    <div className="bg-white p-3 rounded-lg border">
+      <p className="text-gray-500 text-xs">Total Amount</p>
+      <p className="font-bold text-green-600">
+        ₹{selectedOrder?.charges?.finalAmount?.toLocaleString() || "0"}
+      </p>
+    </div>
+
+    {/* Order ID */}
+    <div className="bg-white p-3 rounded-lg border sm:col-span-2">
+      <p className="text-gray-500 text-xs">Order ID</p>
+      <p className="font-medium text-gray-800">
+        #{selectedOrder?.orderId || selectedOrder?._id?.slice(-6) || "N/A"}
+      </p>
+    </div>
+
+    {/* Date */}
+    <div className="bg-white p-3 rounded-lg border sm:col-span-2">
+      <p className="text-gray-500 text-xs">Order Date</p>
+      <p className="font-medium text-gray-800">
+        {selectedOrder?.createdAt
+          ? new Date(selectedOrder.createdAt).toLocaleString()
+          : "N/A"}
+      </p>
+    </div>
+
+  </div>
+</div>
+           <div className="bg-gray-50 rounded-2xl p-5 shadow-sm border">
+
+  <h4 className="text-md font-semibold text-gray-800 mb-4">
+    🛒 Order Items
+  </h4>
+
+  <div className="space-y-4">
+
+    {(selectedOrder?.items || []).map((item, idx) => (
+      <div key={idx} className="bg-white p-4 rounded-xl border space-y-3">
+
+        {/* 🔹 Top section */}
+        <div className="flex gap-4">
+          <img
+            src={item?.image || "https://via.placeholder.com/80"}
+            className="w-20 h-20 rounded-lg object-cover border"
+          />
+
+          <div className="flex-1">
+            <p className="font-semibold">{item?.name}</p>
+            <p className="text-xs text-gray-500">
+              Size: {item?.size || "-"} | Color: {item?.color || "-"}
+            </p>
+            <p className="text-sm">Qty: {item?.quantity}</p>
+            <p className="text-green-600 font-semibold">
+              ₹{item?.price}
+            </p>
+          </div>
+        </div>
+
+        {/* 🎨 DESIGN IMAGE */}
+        {item?.designImage?.length > 0 && (
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Design Image</p>
+            <div className="flex gap-2 flex-wrap">
+              {item.designImage.map((img, i) => (
+                <img
+                  key={i}
+                  src={img}
+                  className="w-16 h-16 rounded border object-cover"
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        {/* 📝 NOTE */}
+        {item?.note && (
+          <div className="bg-yellow-50 p-2 rounded border text-sm">
+            <span className="text-gray-500 text-xs">Note:</span>
+            <p className="font-medium text-gray-700">{item.note}</p>
+          </div>
+        )}
+
+      </div>
+    ))}
+
+ {selectedOrder?.uploadedImages?.length > 0 && (
+  <div>
+    <p className="text-xs text-gray-500 mb-2">Uploaded Files</p>
+
+    <div className="flex flex-col gap-2">
+      {selectedOrder.uploadedImages.map((file, i) => {
+        const fileName = file.split("/").pop().split("?")[0];
+        const isImage = file.match(/\.(jpg|jpeg|png|webp)$/i);
+
+        return (
+          <div
+            key={i}
+            className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded border"
+          >
+            <div className="flex items-center gap-2">
+              {isImage && (
+                <img
+                  src={file}
+                  alt="preview"
+                  className="w-8 h-8 object-cover rounded"
+                />
+              )}
+
+              <p className="text-sm text-gray-700 truncate max-w-[150px]">
+                {fileName}
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              {/* VIEW */}
+              <a
+                href={file}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 text-xs font-medium hover:underline"
+              >
+                View
+              </a>
+
+              {/* DOWNLOAD */}
+              <a
+                href={file.replace("/upload/", "/upload/fl_attachment/")}
+                download
+                className="text-green-600 text-xs font-medium hover:underline"
+              >
+                Download
+              </a>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
+
+  </div>
+</div>
             </div>
             <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex justify-end">
               <button onClick={() => setSelectedOrder(null)} className="px-5 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">Close</button>

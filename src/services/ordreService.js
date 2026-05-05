@@ -31,9 +31,11 @@ export const getOrderById = (orderId) => {
 //
 // 🔄 UPDATE ORDER STATUS (ADMIN)
 //
-export const updateOrderStatus = (data) => {
-  // data = { orderId, status }
-  return API.put("/order/status", data);
+export const updateOrderStatus = (orderId, status) => {
+  return API.put("/order/status", {
+    orderId,
+    status,
+  });
 };
 
 //
@@ -48,6 +50,6 @@ export const createRazorpayOrder = (data) => {
 };
 
 export const verifyPayment = (data) => {
-  return API.post("/order/verify-payment", data);
+  return API.post("/order/verify-payment", data );
 };
 

@@ -6,6 +6,9 @@ import { useCart } from "../../hooks/useCart";
 import { useNavigate } from "react-router-dom";
 import Popup from "../../components/common/Popup";
 import UserLogin from "../../components/user/UserLogin";
+import { getReviews } from "../../services/reviewService";
+
+
 
 // Skeleton Loader
 const ProductDetailsSkeleton = () => (
@@ -117,12 +120,38 @@ function ProductDetails() {
   const [popupMsg, setPopupMsg] = useState("");
   const [showPopup, setShowPopup] = useState(false);
 
+  // Review 
+  const [reviews, setReviews] = useState([]);
+const [reviewLoading, setReviewLoading] = useState(true);
+
   // Helper: check if user is logged in (valid token)
   const isLoggedIn = useCallback(() => {
     const token = localStorage.getItem("token");
     return token && token !== "undefined" && token !== "null" && token.trim() !== "";
   }, []);
 
+  useEffect(() => {
+  if (!product?._id) return;
+
+  const fetchReviews = async () => {
+    try {
+      setReviewLoading(true);
+
+      const data = await getReviews(product._id);
+
+      console.log("REVIEWS 👉", data); // debug
+
+      setReviews(data || []);
+    } catch (err) {
+      console.error("Review fetch error:", err);
+      setReviews([]);
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  fetchReviews();
+}, [product?._id]);
   // Protected action wrapper
   const handleProtectedAction = useCallback(
     (callback) => {
@@ -343,8 +372,9 @@ function ProductDetails() {
             100
         )
       : 0;
-  const avgRating =
-    dummyReviews.reduce((acc, r) => acc + r.rating, 0) / dummyReviews.length;
+ const avgRating = reviews.length
+  ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
+  : 0;
 
   return (
     <div className="bg-gradient-to-b from-white to-gray-50 min-h-screen">
@@ -696,45 +726,66 @@ function ProductDetails() {
           </div>
 
           <div className="space-y-5">
-            {dummyReviews.map((review) => (
-              <div
-                key={review.id}
-                className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all"
-              >
-                <div className="flex items-start gap-4">
-                  <img
-                    src={review.avatar}
-                    alt={review.userName}
-                    className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                      <div>
-                        <h4 className="font-semibold text-gray-900">
-                          {review.userName}
-                        </h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          <StarRating rating={review.rating} />
-                          <span className="text-xs text-gray-400">
-                            {new Date(review.date).toLocaleDateString("en-IN", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
-                        Verified Purchase
-                      </span>
-                    </div>
-                    <p className="text-gray-600 text-sm mt-2 leading-relaxed">
-                      {review.comment}
-                    </p>
-                  </div>
+           <div className="space-y-5">
+  {reviewLoading ? (
+    <p className="text-gray-400">Loading reviews...</p>
+  ) : reviews.length === 0 ? (
+    <p className="text-gray-400">No reviews yet 😢</p>
+  ) : (
+    reviews.map((review) => (
+      <div
+        key={review._id}
+        className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all"
+      >
+        <div className="flex items-start gap-4">
+          {/* Avatar */}
+          <img
+            src={`https://ui-avatars.com/api/?name=${review.userId?.email || "User"}`}
+            className="w-10 h-10 rounded-full object-cover"
+          />
+
+          <div className="flex-1">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+              <div>
+                <h4 className="font-semibold text-gray-900">
+                  {review.userId?.email || "User"}
+                </h4>
+
+                <div className="flex items-center gap-2 mt-1">
+                  <StarRating rating={review.rating} />
+                  <span className="text-xs text-gray-400">
+                    {new Date(review.createdAt).toLocaleDateString("en-IN")}
+                  </span>
                 </div>
               </div>
-            ))}
+
+              <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
+                Verified
+              </span>
+            </div>
+
+            <p className="text-gray-600 text-sm mt-2">
+              {review.comment}
+            </p>
+
+            {/* 🔥 Review Images */}
+            {review.images?.length > 0 && (
+              <div className="flex gap-2 mt-3 flex-wrap">
+                {review.images.map((img, i) => (
+                  <img
+                    key={i}
+                    src={img}
+                    className="w-16 h-16 rounded border object-cover"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    ))
+  )}
+</div>
           </div>
         </div>
       </div>

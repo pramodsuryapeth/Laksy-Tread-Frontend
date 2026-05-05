@@ -4,6 +4,7 @@ import { useState } from "react";
 import API from "../../services/api";
 import Popup from "../../components/common/Popup";
 import Loader from "../../components/common/Loader";
+import { uploadFiles } from "../../services/uploadSevice";
 
 // ------------------- Sub-components (outside render) -------------------
 const StepIndicator = ({ currentStep }) => (
@@ -79,20 +80,50 @@ function Checkout() {
   const closePopup = () => setPopup({ show: false, type: "info", message: "" });
 
   // ---------- PDF Validation ----------
-  const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const valid = files.filter((f) => f.type === "application/pdf");
+const handleFileUpload = async (e) => {
+  const files = Array.from(e.target.files);
 
-    if (valid.length !== files.length) {
-      showPopup("Only PDF files are allowed ❌", "error");
-      return;
-    }
-    if (valid.length > 5) {
-      showPopup("Maximum 5 PDF files allowed", "error");
-      return;
-    }
-    setOrderData((prev) => ({ ...prev, uploadedFiles: valid }));
-  };
+  const valid = files.filter(
+    (f) =>
+      f.type.startsWith("image/") ||
+      f.type === "application/pdf"
+  );
+
+  if (valid.length !== files.length) {
+    showPopup("Only PDF and image files allowed ❌", "error");
+    return;
+  }
+
+  if (valid.length > 5) {
+    showPopup("Max 5 files allowed", "error");
+    return;
+  }
+
+  try {
+    const formData = new FormData();
+
+    valid.forEach((file) => {
+      formData.append("files", file); // 🔥 same name as backend
+    });
+
+    setIsProcessing(true); // optional loader
+
+    const urls = await uploadFiles(formData); // 🔥 API call
+
+    setOrderData((prev) => ({
+      ...prev,
+      uploadedFiles: urls, // ✅ now URLs
+    }));
+
+    showPopup("Files uploaded successfully ✅", "success");
+
+  } catch (err) {
+    console.error(err);
+    showPopup("Upload failed ❌", "error");
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   // ---------- Address Validation ----------
   const validateAddress = () => {
@@ -146,56 +177,83 @@ function Checkout() {
       });
       const order = res.data;
 
-      const options = {
-        key: import.meta.env.REACT_APP_RAZORPAY_KEY || "rzp_test_xxxxx",
-        amount: order.amount,
-        currency: "INR",
-        name: "Lakshy Trade",
-        description: "Order Payment",
-        order_id: order.id,
-        handler: async (response) => {
-          try {
-            await API.post("/order/verify-payment", {
-              ...response,
-              orderData: {
-                user: orderData.address,
-                // ✅ designImage included in backend payload
-                items: orderData.items.map((item) => ({
-                  productId: item.productId,
-                  variantId: item.variantId,
-                  name: item.name,
-                  price: item.price,
-                  quantity: item.quantity,
-                  image: item.image,
-                  size: item.size,
-                  color: item.color,
-                  designImage: item.designImage, // 🔥 ARRAY ["front.png", "back.png"]
-                })),
-                uploadedFiles: orderData.uploadedFiles.map((f) => f.name),
-                note: orderData.note,
-                deliveryType: orderData.deliveryType,
-                charges: orderData.charges,
-                clearCart: orderData.fromCart,
-              },
-            });
+     const options = {
+  key: import.meta.env.VITE_RAZORPAY_KEY || "rzp_test_SlFENtTIAMo2e3",   // ✅ FIXED
+  amount: order.amount,
+  currency: "INR",
+  name: "Lakshy Trade",
+  description: "Order Payment",
+  order_id: order.id,
 
-            setStep(7);
-            showPopup("Payment successful! Order confirmed 🎉", "success");
-          } catch (err) {
-            console.error(err);
-            showPopup("Payment verification failed. Please contact support.", "error");
-          } finally {
-            setIsProcessing(false);
+  config: {
+  display: {
+    blocks: {
+      upi: {
+        name: "Pay using UPI",
+        instruments: [
+          {
+            method: "upi"
           }
+        ]
+      }
+    },
+    sequence: ["block.upi"],
+    preferences: {
+      show_default_blocks: true
+    }
+  }
+},
+
+  prefill: {
+    name: orderData.address.name || "Guest",
+    email: orderData.address.email || "test@example.com",
+    contact: orderData.address.phone || "9999999999",
+  },
+
+  handler: async (response) => {
+    try {
+      await API.post("/order/verify-payment", {
+        ...response,
+        orderData: {
+          user: orderData.address,
+          items: orderData.items.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image,
+            size: item.size,
+            color: item.color,
+            designImage: item.designImage,
+          })),
+          uploadedFiles: orderData.uploadedFiles,
+          note: orderData.note,
+          deliveryType: orderData.deliveryType,
+          charges: orderData.charges,
+          clearCart: orderData.fromCart,
         },
-        modal: {
-          ondismiss: () => {
-            setIsProcessing(false);
-            showPopup("Payment cancelled", "warning");
-          },
-        },
-        theme: { color: "#000" },
-      };
+      });
+
+      setStep(7);
+      showPopup("Payment successful! Order confirmed 🎉", "success");
+    } catch (err) {
+      console.error(err);
+      showPopup("Payment verification failed.", "error");
+    } finally {
+      setIsProcessing(false);
+    }
+  },
+
+  modal: {
+    ondismiss: () => {
+      setIsProcessing(false);
+      showPopup("Payment cancelled", "warning");
+    },
+  },
+
+  theme: { color: "#000" },
+};
 
       const rzp = new window.Razorpay(options);
       rzp.open();
@@ -422,7 +480,7 @@ console.log("Checkout items 👉", orderData.items);
                 <input
                   type="file"
                   multiple
-                  accept="application/pdf"
+                  accept="image/*,application/pdf"
                   onChange={handleFileUpload}
                   className="w-full p-2 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-black file:text-white hover:file:bg-gray-800"
                 />
@@ -430,7 +488,7 @@ console.log("Checkout items 👉", orderData.items);
                   <div className="mt-3">
                     <p className="text-sm font-medium">Uploaded files:</p>
                     {orderData.uploadedFiles.map((file, i) => (
-                      <p key={i} className="text-sm text-gray-600">📄 {file.name}</p>
+                      <p key={i} className="text-sm text-gray-600"> 📄 File {i + 1}</p>
                     ))}
                   </div>
                 )}

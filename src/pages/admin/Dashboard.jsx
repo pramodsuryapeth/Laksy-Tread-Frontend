@@ -199,10 +199,10 @@ function Dashboard() {
                       #{order.orderId || order._id.slice(-6)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {order.customerName || order.customer?.name || "Guest"}
+                       {order.user?.name || "Guest"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800">
-                      {formatCurrency(order.amount || order.total || 0)}
+                        {formatCurrency(order.charges?.finalAmount || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>

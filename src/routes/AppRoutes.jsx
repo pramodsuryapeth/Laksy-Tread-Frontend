@@ -17,6 +17,7 @@ import CustomizeProduct from "../pages/user/CustomizeProduct";
 import Cart from "../pages/user/Cart";
 import Checkout from "../pages/user/Checkout";
 import Profile from "../pages/user/Profile";
+import ReviewPage from "../pages/user/ReviewPage"
 
 // optional protection
 import UserRoute from "../components/common/UserRoute";
@@ -140,6 +141,16 @@ const AppRoutes = () => {
           <UserRoute>
             <UserLayout>
               <Profile />
+            </UserLayout>
+          </UserRoute>
+        }
+      />
+       <Route
+        path="/review/:orderId"
+        element={
+          <UserRoute>
+            <UserLayout>
+              <ReviewPage />
             </UserLayout>
           </UserRoute>
         }
