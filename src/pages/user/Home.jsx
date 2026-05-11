@@ -16,6 +16,8 @@ function Home() {
       try {
         const res = await getProducts();
         console.log("Products fetched:", res.data);
+        console.log(import.meta.env.VITE_RAZORPAY_KEY);
+        console.log(import.meta.env.VITE_API_URL);
 
         const allVariants = (res?.data || []).flatMap((product) =>
   (product?.variants || []).map((variant) => ({

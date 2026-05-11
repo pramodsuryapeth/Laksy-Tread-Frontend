@@ -1,18 +1,14 @@
 import ProductCard from "./ProductCard";
+import Loader from "../common/Loader";
 
 function ProductGrid({ products, loading, onProtectedAction }) {
-  if (loading) {
-    return <div className="text-center py-10">Loading...</div>;
-  }
-
-  if (!products || products.length === 0) {
-    return <div className="text-center py-10">No Products Found</div>;
-  }
+  if (loading) return <Loader />;
+  if (!products || products.length === 0) return <Loader />;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-6">
       {(products || [])
-        .filter(Boolean) // ✅ remove undefined/null
+        .filter(Boolean)
         .map((product) => (
           <ProductCard
             key={product._id}

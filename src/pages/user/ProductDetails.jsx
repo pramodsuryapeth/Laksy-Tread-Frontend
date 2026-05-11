@@ -441,7 +441,7 @@ const [reviewLoading, setReviewLoading] = useState(true);
                 {product.name}
               </h1>
               <div className="flex items-center gap-3 mt-2 flex-wrap">
-                <span className="text-sm text-gray-500">by LakshyTreade</span>
+                <span className="text-sm text-gray-500">by कलाकार PRINT STUDIO</span>
                 <span className="w-1 h-1 bg-gray-300 rounded-full" />
                 <div className="flex items-center gap-2">
                   <StarRating rating={Math.round(avgRating)} />
@@ -702,92 +702,113 @@ const [reviewLoading, setReviewLoading] = useState(true);
         )}
 
         {/* Reviews Section */}
-        <div className="mt-16 pt-8 border-t border-gray-200">
-          <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                Customer Reviews
-              </h2>
-              <div className="flex items-center gap-3 mt-2">
-                <div className="flex items-center">
-                  <StarRating rating={Math.round(avgRating)} />
-                  <span className="ml-2 text-lg font-semibold text-gray-900">
-                    {avgRating.toFixed(1)}
-                  </span>
+       <div className="mt-16 pt-8 border-t border-gray-200">
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div className="text-center sm:text-left">
+      <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+        Customer Reviews
+      </h2>
+      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 mt-2">
+        <div className="flex items-center">
+          <StarRating rating={Math.round(avgRating)} />
+          <span className="ml-2 text-lg sm:text-xl font-bold text-gray-900">
+            {avgRating.toFixed(1)}
+          </span>
+        </div>
+        <span className="text-sm text-gray-500">
+          Based on {reviews.length} reviews
+        </span>
+      </div>
+    </div>
+    <button className="px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition shadow-md hover:shadow-lg text-sm sm:text-base self-center sm:self-auto">
+      Write a Review
+    </button>
+  </div>
+
+  <div className="space-y-5">
+    {reviewLoading ? (
+      <div className="text-center py-12">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-gray-900"></div>
+        <p className="text-gray-500 mt-3">Loading reviews...</p>
+      </div>
+    ) : reviews.length === 0 ? (
+      <div className="text-center py-12 bg-gray-50 rounded-2xl">
+        <p className="text-gray-500">No reviews yet 😢</p>
+        <p className="text-sm text-gray-400 mt-1">Be the first to review this product!</p>
+      </div>
+    ) : (
+      reviews.map((review) => (
+        <div
+          key={review._id}
+          className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300"
+        >
+          {/* Mobile: stacked, Desktop: row */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            {/* Avatar - centered on mobile */}
+            <div className="flex justify-center sm:justify-start">
+              <img
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                  review.userId?.email?.split('@')[0] || "User"
+                )}&background=random&color=fff&rounded=true&size=48`}
+                className="w-12 h-12 rounded-full ring-2 ring-white shadow-sm"
+                alt="avatar"
+              />
+            </div>
+
+            <div className="flex-1">
+              {/* Header: name, email, badge */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                <div className="text-center sm:text-left">
+                  <h4 className="font-bold text-gray-900 text-base">
+                    {review.userId?.email?.split('@')[0] || "User"}
+                  </h4>
+                  {/* Show full email on smaller text (optional) */}
+                  <p className="text-xs text-gray-400 break-all mt-0.5">
+                    {review.userId?.email || "anonymous@example.com"}
+                  </p>
                 </div>
-                <span className="text-sm text-gray-500">
-                  Based on {dummyReviews.length} reviews
+                <span className="text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full self-center sm:self-auto whitespace-nowrap">
+                  ✓ Verified
                 </span>
               </div>
-            </div>
-            <button className="px-5 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition shadow-sm hover:shadow-md">
-              Write a Review
-            </button>
-          </div>
 
-          <div className="space-y-5">
-           <div className="space-y-5">
-  {reviewLoading ? (
-    <p className="text-gray-400">Loading reviews...</p>
-  ) : reviews.length === 0 ? (
-    <p className="text-gray-400">No reviews yet 😢</p>
-  ) : (
-    reviews.map((review) => (
-      <div
-        key={review._id}
-        className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all"
-      >
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
-          <img
-            src={`https://ui-avatars.com/api/?name=${review.userId?.email || "User"}`}
-            className="w-10 h-10 rounded-full object-cover"
-          />
+              {/* Rating and date */}
+              <div className="flex items-center justify-center sm:justify-start gap-3 mt-1">
+                <StarRating rating={review.rating} />
+                <span className="text-xs text-gray-400">
+                  {new Date(review.createdAt).toLocaleDateString("en-IN", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+              </div>
 
-          <div className="flex-1">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-              <div>
-                <h4 className="font-semibold text-gray-900">
-                  {review.userId?.email || "User"}
-                </h4>
+              {/* Comment */}
+              <p className="text-gray-700 text-sm leading-relaxed mt-3 text-center sm:text-left">
+                {review.comment}
+              </p>
 
-                <div className="flex items-center gap-2 mt-1">
-                  <StarRating rating={review.rating} />
-                  <span className="text-xs text-gray-400">
-                    {new Date(review.createdAt).toLocaleDateString("en-IN")}
-                  </span>
+              {/* Review Images */}
+              {review.images?.length > 0 && (
+                <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-4">
+                  {review.images.map((img, i) => (
+                    <img
+                      key={i}
+                      src={img}
+                      alt={`review-img-${i}`}
+                      className="w-20 h-20 rounded-xl border border-gray-200 object-cover shadow-sm hover:scale-105 transition-transform duration-200"
+                    />
+                  ))}
                 </div>
-              </div>
-
-              <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
-                Verified
-              </span>
+              )}
             </div>
-
-            <p className="text-gray-600 text-sm mt-2">
-              {review.comment}
-            </p>
-
-            {/* 🔥 Review Images */}
-            {review.images?.length > 0 && (
-              <div className="flex gap-2 mt-3 flex-wrap">
-                {review.images.map((img, i) => (
-                  <img
-                    key={i}
-                    src={img}
-                    className="w-16 h-16 rounded border object-cover"
-                  />
-                ))}
-              </div>
-            )}
           </div>
         </div>
-      </div>
-    ))
-  )}
+      ))
+    )}
+  </div>
 </div>
-          </div>
-        </div>
       </div>
 
       {/* Popup for cart messages */}
