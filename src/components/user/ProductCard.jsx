@@ -131,12 +131,12 @@ function ProductCard({ product, onProtectedAction }) {
           alt=""
           className="w-full h-32 sm:h-44 md:h-56 object-cover"
         />
-        <div className="p-2 sm:p-3">
-          <h3 className="font-semibold text-sm sm:text-base line-clamp-2">
+        <div className="p-2 sm:p-3 flex flex-col min-h-[120px]">
+          <h3 className="font-semibold text-sm sm:text-base line-clamp-2 min-h-[40px]">
             {product.productName}
           </h3>
           <p className="text-xs sm:text-sm mt-0.5">₹{formattedPrice}</p>
-          <div className="flex gap-2 mt-2 sm:mt-3">
+          <div className="flex gap-2 mt-auto pt-3">
             <button
               onClick={handleAdd}
               className="flex-1 border py-1.5 rounded text-xs sm:text-sm font-medium hover:bg-gray-50"

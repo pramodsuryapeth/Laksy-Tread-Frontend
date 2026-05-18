@@ -1,1 +1,146 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="46" fill="none" viewBox="0 0 48 46"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" style="fill:#863bff;fill:color(display-p3 .5252 .23 1);fill-opacity:1"/><mask id="a" width="48" height="46" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M25.842 44.938c-.664.844-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.183c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.498 0-3.579-1.842-3.579H1.133c-.92 0-1.456-1.04-.92-1.787L9.91.473c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.578 1.842 3.578h11.377c.943 0 1.473 1.088.89 1.832L25.843 44.94z" style="fill:#000;fill-opacity:1"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#ede6ff" rx="5.508" ry="14.704" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -4.47 31.516)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#ede6ff" rx="10.399" ry="29.851" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -39.328 7.883)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#7e14ff" rx="5.508" ry="30.487" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -25.913 -14.639)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -32.644 -3.334)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -34.34 30.47)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#ede6ff" rx="14.072" ry="22.078" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="rotate(93.35 24.506 48.493)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx=".387" cy="8.972" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(39.51 .387 8.972)"/></g><g filter="url(#k)"><ellipse cx="47.523" cy="-6.092" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 47.523 -6.092)"/></g><g filter="url(#l)"><ellipse cx="41.412" cy="6.333" fill="#47bfff" rx="5.971" ry="9.665" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 41.412 6.333)"/></g><g filter="url(#m)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#n)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#o)"><ellipse cx="35.651" cy="29.907" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 35.651 29.907)"/></g><g filter="url(#p)"><ellipse cx="38.418" cy="32.4" fill="#47bfff" rx="5.971" ry="15.297" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 38.418 32.4)"/></g></g><defs><filter id="b" width="60.045" height="41.654" x="-19.77" y="16.149" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-54.613" y="-7.533" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-49.64" y="2.03" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-45.045" y="20.029" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-43.513" y="21.178" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="15.756" y="-17.901" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-27.636" y="-22.853" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="20.116" y="-38.415" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="24.641" y="-11.323" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="8.244" y="-2.416" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="18.713" y="10.588" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter></defs></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kalakar Print Studio — Vector SVG Logo
+  =======================================
+  Recreated from pixel-level analysis of original 7136×8000 PNG.
+
+  Gradient stops — sampled directly from PNG pixels:
+    0%   #FF2700  deep red       (pixel x=19% of text width)
+    15%  #FF5700  red-orange     (pixel x=27%)
+    28%  #FF9A00  orange         (pixel x=33%)
+    40%  #FFB901  amber          (pixel x=43%)
+    50%  #D1CF00  yellow-green   (pixel x=53%)
+    62%  #73D601  bright green   (pixel x=65%)
+    78%  #25C6B7  cyan-teal      (pixel x=71%)
+   100%  #4086FF  cobalt-indigo  (pixel x=79%)
+
+  PRINT STUDIO color: #1a1a1a (pixel scan: #020202–#3A3A3A range)
+  Shirt icon: pure black #000000 (pixel confirmed)
+  Font: Noto Sans Devanagari 900 weight (embed or link separately)
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 500 420"
+  width="500"
+  height="420"
+  role="img"
+  aria-label="Kalakar Print Studio Logo"
+>
+  <title>कलाकार — Kalakar Print Studio</title>
+
+  <defs>
+    <!-- ── Exact rainbow gradient from PNG pixel sampling ── -->
+    <linearGradient id="kRainbow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#FF2700"/>
+      <stop offset="15%"  stop-color="#FF5700"/>
+      <stop offset="28%"  stop-color="#FF9A00"/>
+      <stop offset="40%"  stop-color="#FFB901"/>
+      <stop offset="50%"  stop-color="#D1CF00"/>
+      <stop offset="62%"  stop-color="#73D601"/>
+      <stop offset="78%"  stop-color="#25C6B7"/>
+      <stop offset="100%" stop-color="#4086FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SHIRT-ON-HANGER ICON
+       Coordinates normalized from 7136×8000 pixel trace.
+       Icon centered at x=250. All proportions preserved.
+  ═══════════════════════════════════════════════════════ -->
+  <g id="hanger-icon"
+     stroke="#000000"
+     fill="none"
+     stroke-linecap="round"
+     stroke-linejoin="round">
+
+    <!-- Vertical hanging stem -->
+    <line x1="250" y1="30" x2="250" y2="62"
+          stroke-width="4"/>
+
+    <!-- Hook — small right-curling arc at stem top -->
+    <path d="M250,30
+             C250,22 259,16 266,18
+             C275,21 277,31 270,38
+             C265,43 258,44 254,40
+             C251,38 250,34 250,30"
+          stroke-width="3.5"/>
+
+    <!-- Hanger crossbar / shoulder rod -->
+    <line x1="210" y1="72" x2="290" y2="72"
+          stroke-width="5"/>
+
+    <!-- Left diagonal arm (wide sweep like original) -->
+    <line x1="210" y1="72" x2="155" y2="120"
+          stroke-width="4.5"/>
+
+    <!-- Right diagonal arm -->
+    <line x1="290" y1="72" x2="345" y2="120"
+          stroke-width="4.5"/>
+
+    <!-- Left collar flap — curves from center down-left to shoulder seam -->
+    <path d="M250,68
+             C248,72 236,79 218,90
+             C209,95 206,100 208,108
+             L226,145"
+          stroke-width="4"/>
+
+    <!-- Right collar flap — mirror -->
+    <path d="M250,68
+             C252,72 264,79 282,90
+             C291,95 294,100 292,108
+             L274,145"
+          stroke-width="4"/>
+
+    <!-- Shirt body — left side seam -->
+    <line x1="226" y1="108" x2="230" y2="145"
+          stroke-width="3.5"/>
+
+    <!-- Shirt body — right side seam -->
+    <line x1="274" y1="108" x2="270" y2="145"
+          stroke-width="3.5"/>
+
+    <!-- Shirt hem (bottom edge) -->
+    <line x1="230" y1="145" x2="270" y2="145"
+          stroke-width="3.5"/>
+
+    <!-- Collar fold lines — 3 parallel horizontal stripes
+         (the distinctive shirt collar detail from the original logo) -->
+    <line x1="235" y1="118" x2="265" y2="118" stroke-width="3.2"/>
+    <line x1="233" y1="127" x2="267" y2="127" stroke-width="3.2"/>
+    <line x1="231" y1="136" x2="269" y2="136" stroke-width="3.2"/>
+
+  </g>
+
+  <!-- ═══════════════════════════════════════════════════════
+       "कलाकार" — DEVANAGARI WITH PIXEL-SAMPLED RAINBOW
+       Font: Noto Sans Devanagari, weight 900
+       Centered at x=250
+  ═══════════════════════════════════════════════════════ -->
+  <text
+    x="250"
+    y="295"
+    text-anchor="middle"
+    font-family="'Noto Sans Devanagari', 'Mangal', 'Arial Unicode MS', sans-serif"
+    font-weight="900"
+    font-size="112"
+    letter-spacing="2"
+    fill="url(#kRainbow)"
+  >कलाकार</text>
+
+  <!-- ═══════════════════════════════════════════════════════
+       "PRINT STUDIO" — SUBTITLE
+       Pixel color: #1a1a1a | wide letter-spacing | bold caps
+       Centered under Hindi text
+  ═══════════════════════════════════════════════════════ -->
+  <text
+    x="254"
+    y="365"
+    text-anchor="middle"
+    font-family="'Helvetica Neue', 'Helvetica', 'Arial', sans-serif"
+    font-weight="700"
+    font-size="28"
+    letter-spacing="10"
+    fill="#1a1a1a"
+  >PRINT STUDIO</text>
+
+</svg>

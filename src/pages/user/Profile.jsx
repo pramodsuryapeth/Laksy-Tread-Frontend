@@ -46,13 +46,32 @@ function Profile() {
     return styles[status?.toLowerCase()] || "bg-gray-100 text-gray-800";
   };
 
+  // Build WhatsApp message for an order
+  const buildWhatsAppMessage = (order) => {
+    const itemsText = order.items
+      ?.map((p) => `• ${p.name} (Qty: ${p.quantity})`)
+      .join("\n");
+
+    return `Hello, I need help with my order.\n\nOrder ID: ${
+      order.orderId
+    }\n\nCustomer: ${order.user?.name}\nPhone: ${order.user?.phone}\n\nProducts:\n${itemsText}\n\nAmount: ₹${
+      order.charges?.finalAmount
+    }\n\nStatus: ${order.status}`;
+  };
+
+  const handleNeedHelp = (order) => {
+    const message = buildWhatsAppMessage(order);
+    const whatsappUrl = `https://wa.me/7030550562?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">My Profile</h2>
 
-        {/* User Info Card – Role removed, name added */}
+        {/* User Info Card */}
         <div className="bg-white rounded-2xl shadow-md p-6 mb-8 border border-gray-100">
           <h3 className="text-lg sm:text-xl font-semibold mb-4 flex items-center gap-2">
             <span className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-white text-sm">
@@ -71,16 +90,15 @@ function Profile() {
               <p className="text-sm text-gray-500">Email Address</p>
               <p className="font-medium text-gray-900 break-all">{user?.email || "Not available"}</p>
             </div>
-            {/* Role removed intentionally */}
           </div>
         </div>
 
         {/* Orders Section */}
         <div className="mb-6">
           <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Orders</h3>
-          
+
           {loading ? (
-            // Skeleton loaders
+            // Skeleton loaders (no extra code)
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="bg-white rounded-xl shadow-sm p-5 animate-pulse">
@@ -130,7 +148,7 @@ function Profile() {
                   {/* Order Header */}
                   <div className="bg-gray-50 px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      {/* You can add Order ID or other info if needed */}
+                      {/* Optional order ID */}
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <span className={`text-xs font-semibold px-3 py-1 rounded-full ${getStatusBadge(order.status)}`}>
@@ -148,7 +166,7 @@ function Profile() {
 
                   {/* Order Body */}
                   <div className="p-5">
-                    {/* Items grid - responsive */}
+                    {/* Items grid */}
                     <div className="space-y-4 mb-4">
                       {order.items?.map((item, idx) => (
                         <div key={idx} className="flex flex-col sm:flex-row gap-4 pb-4 border-b last:border-0">
@@ -165,6 +183,50 @@ function Profile() {
                               <span>Qty: {item.quantity}</span>
                             </div>
                             <p className="font-bold text-gray-900 mt-2">₹{item.price}</p>
+
+                            {/* Customer Note per item */}
+                            {item.note && (
+                              <div className="mt-2">
+                                <p className="text-xs font-semibold text-gray-700">Customer Note:</p>
+                                <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded-lg mt-1">
+                                  {item.note}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Uploaded Images per item */}
+                            {item.uploadedImages?.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-xs font-semibold text-gray-700 mb-2">Custom Uploaded Images</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {item.uploadedImages.map((img, i) => (
+                                    <img
+                                      key={i}
+                                      src={img}
+                                      alt="custom"
+                                      className="w-20 h-20 rounded-lg object-cover border"
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Design Images per item */}
+                            {item.designImage?.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-xs font-semibold text-gray-700 mb-2">Design Images</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {item.designImage.map((img, i) => (
+                                    <img
+                                      key={i}
+                                      src={img}
+                                      alt="design"
+                                      className="w-20 h-20 rounded-lg object-cover border"
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -192,9 +254,18 @@ function Profile() {
                       </div>
                     </div>
 
-                    {/* Review button for delivered orders */}
-                    {order.status === "delivered" && !order.isReviewed && (
-                      <div className="mt-4 flex justify-end">
+                    {/* Action buttons: Review (if delivered) + Need Help */}
+                    <div className="mt-4 flex justify-end gap-3">
+                      {/* Need Help button (always visible) */}
+                      <button
+                        onClick={() => handleNeedHelp(order)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition"
+                      >
+                        Need Help
+                      </button>
+
+                      {/* Review button for delivered orders */}
+                      {order.status === "delivered" && !order.isReviewed && (
                         <button
                           onClick={() => {
                             const firstItem = order.items?.[0];
@@ -209,8 +280,8 @@ function Profile() {
                         >
                           <span>⭐</span> Write a Review
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

@@ -8,8 +8,6 @@ import Popup from "../../components/common/Popup";
 import UserLogin from "../../components/user/UserLogin";
 import { getReviews } from "../../services/reviewService";
 
-
-
 // Skeleton Loader
 const ProductDetailsSkeleton = () => (
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse">
@@ -60,47 +58,6 @@ const StarRating = ({ rating }) => {
   );
 };
 
-// Dummy Reviews Data
-const dummyReviews = [
-  {
-    id: 1,
-    userName: "Rajesh Sharma",
-    avatar:
-      "https://ui-avatars.com/api/?name=Rajesh+Sharma&background=random",
-    rating: 5,
-    date: "2024-02-15",
-    comment:
-      "Absolutely love this product! The quality is amazing and it fits perfectly. Highly recommend!",
-  },
-  {
-    id: 2,
-    userName: "Priya Patel",
-    avatar: "https://ui-avatars.com/api/?name=Priya+Patel&background=random",
-    rating: 4,
-    date: "2024-02-10",
-    comment:
-      "Great product for the price. Delivery was quick. Would buy again.",
-  },
-  {
-    id: 3,
-    userName: "Amit Kumar",
-    avatar: "https://ui-avatars.com/api/?name=Amit+Kumar&background=random",
-    rating: 5,
-    date: "2024-02-05",
-    comment:
-      "Excellent quality and very comfortable. The color is exactly as shown.",
-  },
-  {
-    id: 4,
-    userName: "Neha Gupta",
-    avatar: "https://ui-avatars.com/api/?name=Neha+Gupta&background=random",
-    rating: 4,
-    date: "2024-01-28",
-    comment:
-      "Good product, but sizing is a bit small. Order one size up.",
-  },
-];
-
 function ProductDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -109,10 +66,12 @@ function ProductDetails() {
   // Product states
   const [product, setProduct] = useState(null);
   const [selectedVariant, setSelectedVariant] = useState(null);
+  const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState(null);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [slideDirection, setSlideDirection] = useState("right");
 
   // Login protection states
   const [showLogin, setShowLogin] = useState(false);
@@ -120,9 +79,9 @@ function ProductDetails() {
   const [popupMsg, setPopupMsg] = useState("");
   const [showPopup, setShowPopup] = useState(false);
 
-  // Review 
+  // Reviews
   const [reviews, setReviews] = useState([]);
-const [reviewLoading, setReviewLoading] = useState(true);
+  const [reviewLoading, setReviewLoading] = useState(true);
 
   // Helper: check if user is logged in (valid token)
   const isLoggedIn = useCallback(() => {
@@ -131,27 +90,33 @@ const [reviewLoading, setReviewLoading] = useState(true);
   }, []);
 
   useEffect(() => {
-  if (!product?._id) return;
+    if (!product?._id) return;
+    const fetchReviews = async () => {
+      try {
+        setReviewLoading(true);
+        const data = await getReviews(product._id);
+        setReviews(data || []);
+      } catch (err) {
+        console.error("Review fetch error:", err);
+        setReviews([]);
+      } finally {
+        setReviewLoading(false);
+      }
+    };
+    fetchReviews();
+  }, [product?._id]);
+  const handleVariantChange = (variant) => {
+  setSelectedVariant(variant);
 
-  const fetchReviews = async () => {
-    try {
-      setReviewLoading(true);
+  if (Array.isArray(variant.color) && variant.color.length > 0) {
+    setSelectedColor(variant.color[0]);
+  }
 
-      const data = await getReviews(product._id);
+  if (Array.isArray(variant.sizes) && variant.sizes.length > 0) {
+    setSelectedSize(variant.sizes[0]);
+  }
+};
 
-      console.log("REVIEWS 👉", data); // debug
-
-      setReviews(data || []);
-    } catch (err) {
-      console.error("Review fetch error:", err);
-      setReviews([]);
-    } finally {
-      setReviewLoading(false);
-    }
-  };
-
-  fetchReviews();
-}, [product?._id]);
   // Protected action wrapper
   const handleProtectedAction = useCallback(
     (callback) => {
@@ -188,16 +153,28 @@ const [reviewLoading, setReviewLoading] = useState(true);
     ].filter(Boolean);
   }, [selectedVariant, product]);
 
-  // Variants and sizes
-  const availableVariants = useMemo(() => {
-    if (!product) return [];
-    return product.variants;
-  }, [product]);
+  // Safe first image for cart / checkout
+  const fallbackImage = "/placeholder-image.jpg";
+  const primaryImage = combinedImages[0] || fallbackImage;
 
+  // Available sizes for selected variant
   const availableSizes = useMemo(() => {
     if (!selectedVariant) return [];
     return selectedVariant.sizes || [];
   }, [selectedVariant]);
+
+  // Flatten variants (one entry per color)
+  const flattenedVariants = useMemo(() => {
+    if (!product?.variants) return [];
+    return product.variants.flatMap((variant) => {
+      const colors = Array.isArray(variant.color) ? variant.color : [variant.color];
+      return colors.map((color) => ({
+        ...variant,
+        color,
+        originalColorArray: variant.color,
+      }));
+    });
+  }, [product]);
 
   // Fetch product on mount
   useEffect(() => {
@@ -207,11 +184,15 @@ const [reviewLoading, setReviewLoading] = useState(true);
         const res = await getProducts();
         const foundProduct = res.data.find((p) => p._id === id);
         if (!foundProduct) return;
-
         setProduct(foundProduct);
 
         const initialVariant = foundProduct.variants[0];
         setSelectedVariant(initialVariant);
+
+        const initialColors = Array.isArray(initialVariant.color)
+          ? initialVariant.color
+          : [initialVariant.color];
+        setSelectedColor(initialColors[0] || "");
 
         const initialSize = initialVariant.sizes?.[0] || null;
         setSelectedSize(initialSize);
@@ -227,19 +208,29 @@ const [reviewLoading, setReviewLoading] = useState(true);
 
     fetchProduct();
   }, [id]);
+  const availableVariants =
+  product?.variants?.filter(
+    (variant) =>
+      variant &&
+      Array.isArray(variant.sizes) &&
+      variant.sizes.length > 0
+  ) || [];
 
-  // Variant change handler
-  const handleVariantChange = useCallback((variant) => {
-    setSelectedVariant(variant);
-    const firstSize = variant.sizes?.[0] || null;
+  // Color + variant change handler
+  const handleVariantColorChange = useCallback((flatVariant) => {
+    setSelectedVariant(flatVariant);
+    setSelectedColor(flatVariant.color);
+    const firstSize = flatVariant.sizes?.[0] || null;
     setSelectedSize(firstSize);
-    setQuantity(variant.stock > 0 ? 1 : 0);
+    setQuantity(flatVariant.stock > 0 ? 1 : 0);
+    setSlideDirection("right");
     setActiveImage(0);
   }, []);
 
   // Size change handler
   const handleSizeChange = useCallback((size) => {
     setSelectedSize(size);
+    setSlideDirection("right");
     setActiveImage(0);
   }, []);
 
@@ -254,17 +245,21 @@ const [reviewLoading, setReviewLoading] = useState(true);
     [selectedVariant]
   );
 
-  // Image navigation
-  const prevImage = () =>
+  // Image navigation with direction
+  const prevImage = () => {
+    setSlideDirection("left");
     setActiveImage((prev) =>
       prev === 0 ? combinedImages.length - 1 : prev - 1
     );
-  const nextImage = () =>
+  };
+  const nextImage = () => {
+    setSlideDirection("right");
     setActiveImage((prev) =>
       prev === combinedImages.length - 1 ? 0 : prev + 1
     );
+  };
 
-  // ---------- Protected actions ----------
+  // ---------- Protected actions (cart & buy) ----------
   const handleAddToCart = useCallback(() => {
     if (selectedVariant?.stock <= 0) return;
     const action = () => {
@@ -274,8 +269,8 @@ const [reviewLoading, setReviewLoading] = useState(true);
         name: product.name,
         price: selectedVariant.price,
         size: selectedSize,
-        color: selectedVariant.color,
-        image: combinedImages[0],
+        color: selectedColor,
+        image: primaryImage,
         quantity,
       });
       setPopupMsg("🛒 Item added to cart!");
@@ -286,9 +281,10 @@ const [reviewLoading, setReviewLoading] = useState(true);
     selectedVariant,
     product,
     selectedSize,
+    selectedColor,
     quantity,
     addToCart,
-    combinedImages,
+    primaryImage,
     handleProtectedAction,
   ]);
 
@@ -301,8 +297,8 @@ const [reviewLoading, setReviewLoading] = useState(true);
         name: product.name,
         price: selectedVariant.price,
         size: selectedSize,
-        color: selectedVariant.color,
-        image: combinedImages[0],
+        color: selectedColor,
+        image: primaryImage,
         quantity,
       });
       navigate("/checkout", {
@@ -314,8 +310,8 @@ const [reviewLoading, setReviewLoading] = useState(true);
               name: product.name,
               price: selectedVariant.price,
               size: selectedSize,
-              color: selectedVariant.color,
-              image: combinedImages[0],
+              color: selectedColor,
+              image: primaryImage,
               quantity,
             },
           ],
@@ -328,10 +324,11 @@ const [reviewLoading, setReviewLoading] = useState(true);
     selectedVariant,
     product,
     selectedSize,
+    selectedColor,
     quantity,
     addToCart,
     navigate,
-    combinedImages,
+    primaryImage,
     handleProtectedAction,
   ]);
 
@@ -372,12 +369,42 @@ const [reviewLoading, setReviewLoading] = useState(true);
             100
         )
       : 0;
- const avgRating = reviews.length
-  ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
-  : 0;
+  const avgRating = reviews.length
+    ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
+    : 0;
 
   return (
     <div className="bg-gradient-to-b from-white to-gray-50 min-h-screen">
+      {/* Direction-aware slide-in animations */}
+      <style>{`
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        @keyframes slideInLeft {
+          from {
+            transform: translateX(-100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-in-right {
+          animation: slideInRight 0.4s ease-out;
+        }
+        .animate-slide-in-left {
+          animation: slideInLeft 0.4s ease-out;
+        }
+      `}</style>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         {/* Product main section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
@@ -385,9 +412,14 @@ const [reviewLoading, setReviewLoading] = useState(true);
           <div className="space-y-4">
             <div className="relative group bg-white rounded-2xl overflow-hidden shadow-xl border border-gray-100">
               <img
-                src={combinedImages[activeImage] || "/placeholder-image.jpg"}
+                key={activeImage}
+                src={combinedImages[activeImage] || fallbackImage}
                 alt={product.name}
-                className="w-full h-auto max-h-[550px] object-contain bg-white transition-transform duration-700 group-hover:scale-105"
+                className={`w-full h-auto max-h-[550px] object-contain bg-white ${
+                  slideDirection === "right"
+                    ? "animate-slide-in-right"
+                    : "animate-slide-in-left"
+                }`}
               />
               {combinedImages.length > 1 && (
                 <>
@@ -416,7 +448,10 @@ const [reviewLoading, setReviewLoading] = useState(true);
                 {combinedImages.map((img, i) => (
                   <button
                     key={i}
-                    onClick={() => setActiveImage(i)}
+                    onClick={() => {
+                      setSlideDirection(i > activeImage ? "right" : "left");
+                      setActiveImage(i);
+                    }}
                     className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border-2 overflow-hidden transition-all duration-200 ${
                       activeImage === i
                         ? "border-gray-900 ring-2 ring-gray-900/20"
@@ -446,7 +481,7 @@ const [reviewLoading, setReviewLoading] = useState(true);
                 <div className="flex items-center gap-2">
                   <StarRating rating={Math.round(avgRating)} />
                   <span className="text-sm text-gray-600">
-                    ({dummyReviews.length} reviews)
+                    ({reviews.length} reviews)
                   </span>
                 </div>
                 <span className="text-sm text-green-600 flex items-center gap-1">
@@ -483,7 +518,7 @@ const [reviewLoading, setReviewLoading] = useState(true);
               </p>
             </div>
 
-            {/* Color selection */}
+            {/* Color selection – using flattenedVariants */}
             <div>
               <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 Color
@@ -492,17 +527,21 @@ const [reviewLoading, setReviewLoading] = useState(true);
                 </span>
               </h3>
               <div className="flex flex-wrap gap-2">
-                {availableVariants.map((variant) => (
+                {flattenedVariants.map((fv) => (
                   <button
-                    key={variant._id}
-                    onClick={() => handleVariantChange(variant)}
-                    className={`px-5 py-2 rounded-full border text-sm font-medium transition-all duration-200 ${
-                      selectedVariant._id === variant._id
+                    key={`${fv._id}-${fv.color}`}
+                    onClick={() => handleVariantColorChange(fv)}
+                    className={`px-5 py-2 rounded-full border text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                      selectedVariant._id === fv._id && selectedColor === fv.color
                         ? "bg-gray-900 text-white border-gray-900 shadow-md scale-105"
                         : "bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:shadow-sm"
                     }`}
                   >
-                    {variant.color}
+                    <span
+                      className="w-4 h-4 rounded-full inline-block border border-gray-300"
+                      style={{ backgroundColor: fv.color || "#ccc" }}
+                    ></span>
+                    {fv.color}
                   </button>
                 ))}
               </div>
@@ -633,182 +672,173 @@ const [reviewLoading, setReviewLoading] = useState(true);
         </div>
 
         {/* All Variants Section */}
-        {availableVariants.length > 1 && (
-          <div className="mt-16 pt-8 border-t border-gray-200">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">
-                All Variants
-              </h2>
-              <p className="text-gray-500 text-sm mt-1">
-                Choose your perfect match
-              </p>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
-              {availableVariants.map((variant) => {
-                const isSelected = selectedVariant._id === variant._id;
-                const variantImage =
-                  variant.images?.[0] ||
-                  product.images?.[0] ||
-                  "/placeholder-image.jpg";
-                return (
-                  <button
-                    key={variant._id}
-                    onClick={() => handleVariantChange(variant)}
-                    className={`group border rounded-xl p-3 text-left transition-all duration-200 ${
-                      isSelected
-                        ? "border-gray-900 ring-2 ring-gray-900 shadow-lg transform scale-[1.02]"
-                        : "border-gray-200 hover:border-gray-300 hover:shadow-md hover:-translate-y-1"
-                    } bg-white`}
-                  >
-                    <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 mb-3">
-                      <img
-                        src={variantImage}
-                        alt={variant.color}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      />
-                    </div>
-                    <p className="font-semibold text-gray-800 truncate">
-                      {variant.color}
-                    </p>
-                    <p className="text-lg font-bold text-gray-900 mt-1">
-                      ₹{variant.price.toLocaleString("en-IN")}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                      <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                        />
-                      </svg>
-                      {variant.sizes?.length || 0} sizes
-                    </p>
-                    {isSelected && (
-                      <div className="mt-2 text-xs text-white bg-gray-900 rounded-full px-2 py-0.5 inline-block">
-                        Selected
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Reviews Section */}
-       <div className="mt-16 pt-8 border-t border-gray-200">
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-    <div className="text-center sm:text-left">
-      <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
-        Customer Reviews
+       {/* All Variants Section */}
+{availableVariants.length > 1 && (
+  <div className="mt-16 pt-8 border-t border-gray-200">
+    <div className="text-center mb-8">
+      <h2 className="text-2xl font-bold text-gray-900">
+        All Variants
       </h2>
-      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 mt-2">
-        <div className="flex items-center">
-          <StarRating rating={Math.round(avgRating)} />
-          <span className="ml-2 text-lg sm:text-xl font-bold text-gray-900">
-            {avgRating.toFixed(1)}
-          </span>
-        </div>
-        <span className="text-sm text-gray-500">
-          Based on {reviews.length} reviews
-        </span>
-      </div>
-    </div>
-    <button className="px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition shadow-md hover:shadow-lg text-sm sm:text-base self-center sm:self-auto">
-      Write a Review
-    </button>
-  </div>
 
-  <div className="space-y-5">
-    {reviewLoading ? (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-gray-900"></div>
-        <p className="text-gray-500 mt-3">Loading reviews...</p>
-      </div>
-    ) : reviews.length === 0 ? (
-      <div className="text-center py-12 bg-gray-50 rounded-2xl">
-        <p className="text-gray-500">No reviews yet 😢</p>
-        <p className="text-sm text-gray-400 mt-1">Be the first to review this product!</p>
-      </div>
-    ) : (
-      reviews.map((review) => (
-        <div
-          key={review._id}
-          className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300"
-        >
-          {/* Mobile: stacked, Desktop: row */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-            {/* Avatar - centered on mobile */}
-            <div className="flex justify-center sm:justify-start">
+      <p className="text-gray-500 text-sm mt-1">
+        Choose your perfect match
+      </p>
+    </div>
+
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+      {availableVariants.map((variant) => {
+        const isSelected = selectedVariant._id === variant._id;
+
+        const variantImage =
+          variant.images?.[0] ||
+          product.images?.[0] ||
+          fallbackImage;
+
+        return (
+          <button
+            key={variant._id}
+            onClick={() => handleVariantChange(variant)}
+            className={`group border rounded-xl p-3 text-left transition-all duration-200 ${
+              isSelected
+                ? "border-gray-900 ring-2 ring-gray-900 shadow-lg transform scale-[1.02]"
+                : "border-gray-200 hover:border-gray-300 hover:shadow-md hover:-translate-y-1"
+            } bg-white`}
+          >
+            <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 mb-3">
               <img
-                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
-                  review.userId?.email?.split('@')[0] || "User"
-                )}&background=random&color=fff&rounded=true&size=48`}
-                className="w-12 h-12 rounded-full ring-2 ring-white shadow-sm"
-                alt="avatar"
+                src={variantImage}
+                alt="variant"
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
               />
             </div>
 
-            <div className="flex-1">
-              {/* Header: name, email, badge */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                <div className="text-center sm:text-left">
-                  <h4 className="font-bold text-gray-900 text-base">
-                    {review.userId?.email?.split('@')[0] || "User"}
-                  </h4>
-                  {/* Show full email on smaller text (optional) */}
-                  <p className="text-xs text-gray-400 break-all mt-0.5">
-                    {review.userId?.email || "anonymous@example.com"}
-                  </p>
+            <p className="font-semibold text-gray-800 truncate">
+              {Array.isArray(variant.color)
+                ? variant.color.join(", ")
+                : variant.color}
+            </p>
+
+            <p className="text-lg font-bold text-gray-900 mt-1">
+              ₹{variant.price.toLocaleString("en-IN")}
+            </p>
+
+            <p className="text-xs text-gray-500 mt-1">
+              {variant.sizes?.length || 0} sizes
+            </p>
+
+            {isSelected && (
+              <div className="mt-2 text-xs text-white bg-gray-900 rounded-full px-2 py-0.5 inline-block">
+                Selected
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+)}
+
+        {/* Reviews Section */}
+        <div className="mt-16 pt-8 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="text-center sm:text-left">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                Customer Reviews
+              </h2>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 mt-2">
+                <div className="flex items-center">
+                  <StarRating rating={Math.round(avgRating)} />
+                  <span className="ml-2 text-lg sm:text-xl font-bold text-gray-900">
+                    {avgRating.toFixed(1)}
+                  </span>
                 </div>
-                <span className="text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full self-center sm:self-auto whitespace-nowrap">
-                  ✓ Verified
+                <span className="text-sm text-gray-500">
+                  Based on {reviews.length} reviews
                 </span>
               </div>
-
-              {/* Rating and date */}
-              <div className="flex items-center justify-center sm:justify-start gap-3 mt-1">
-                <StarRating rating={review.rating} />
-                <span className="text-xs text-gray-400">
-                  {new Date(review.createdAt).toLocaleDateString("en-IN", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-
-              {/* Comment */}
-              <p className="text-gray-700 text-sm leading-relaxed mt-3 text-center sm:text-left">
-                {review.comment}
-              </p>
-
-              {/* Review Images */}
-              {review.images?.length > 0 && (
-                <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-4">
-                  {review.images.map((img, i) => (
-                    <img
-                      key={i}
-                      src={img}
-                      alt={`review-img-${i}`}
-                      className="w-20 h-20 rounded-xl border border-gray-200 object-cover shadow-sm hover:scale-105 transition-transform duration-200"
-                    />
-                  ))}
-                </div>
-              )}
             </div>
+            <button className="px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition shadow-md hover:shadow-lg text-sm sm:text-base self-center sm:self-auto">
+              Write a Review
+            </button>
+          </div>
+
+          <div className="space-y-5">
+            {reviewLoading ? (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-gray-900"></div>
+                <p className="text-gray-500 mt-3">Loading reviews...</p>
+              </div>
+            ) : reviews.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                <p className="text-gray-500">No reviews yet 😢</p>
+                <p className="text-sm text-gray-400 mt-1">Be the first to review this product!</p>
+              </div>
+            ) : (
+              reviews.map((review) => (
+                <div
+                  key={review._id}
+                  className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                    <div className="flex justify-center sm:justify-start">
+                      <img
+                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                          review.userId?.email?.split("@")[0] || "User"
+                        )}&background=random&color=fff&rounded=true&size=48`}
+                        className="w-12 h-12 rounded-full ring-2 ring-white shadow-sm"
+                        alt="avatar"
+                      />
+                    </div>
+
+                    <div className="flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                        <div className="text-center sm:text-left">
+                          <h4 className="font-bold text-gray-900 text-base">
+                            {review.userId?.email?.split("@")[0] || "User"}
+                          </h4>
+                          <p className="text-xs text-gray-400 break-all mt-0.5">
+                            {review.userId?.email || "anonymous@example.com"}
+                          </p>
+                        </div>
+                        <span className="text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full self-center sm:self-auto whitespace-nowrap">
+                          ✓ Verified
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-center sm:justify-start gap-3 mt-1">
+                        <StarRating rating={review.rating} />
+                        <span className="text-xs text-gray-400">
+                          {new Date(review.createdAt).toLocaleDateString("en-IN", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+
+                      <p className="text-gray-700 text-sm leading-relaxed mt-3 text-center sm:text-left">
+                        {review.comment}
+                      </p>
+
+                      {review.images?.length > 0 && (
+                        <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-4">
+                          {review.images.map((img, i) => (
+                            <img
+                              key={i}
+                              src={img}
+                              alt={`review-img-${i}`}
+                              className="w-20 h-20 rounded-xl border border-gray-200 object-cover shadow-sm hover:scale-105 transition-transform duration-200"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      ))
-    )}
-  </div>
-</div>
       </div>
 
       {/* Popup for cart messages */}

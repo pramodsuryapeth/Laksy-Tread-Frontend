@@ -206,7 +206,7 @@ function Checkout() {
       0
     );
     const delivery = orderData.deliveryType === "delivery" ? 60 : 0;
-    const gst = 0;
+  const gst = Number(((productTotal + delivery) * 0.02).toFixed(2));
 
     setOrderData((prev) => ({
       ...prev,
@@ -484,7 +484,7 @@ function Checkout() {
               <div className="border-t pt-4 space-y-2">
                 <div className="flex justify-between"><span>Product Total</span><span>₹{orderData.charges.productTotal}</span></div>
                 <div className="flex justify-between"><span>Delivery Charges</span><span>₹{orderData.charges.deliveryCharge}</span></div>
-                <div className="flex justify-between"><span>GST (18%)</span><span>₹{orderData.charges.gst}</span></div>
+                <div className="flex justify-between"><span>GST (2%)</span><span>₹{orderData.charges.gst}</span></div>
                 <div className="flex justify-between text-lg font-bold pt-2 border-t"><span>Total Amount</span><span>₹{orderData.charges.finalAmount}</span></div>
               </div>
             </div>

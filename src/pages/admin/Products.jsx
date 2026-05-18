@@ -329,7 +329,8 @@ function Products() {
     // Convert variant.colors to array (supports string or array)
     let colorsArray = [];
     if (Array.isArray(variant.colors)) colorsArray = [...variant.colors];
-    else if (typeof variant.colors === "string" && variant.colors) colorsArray = variant.colors.split(",").map(c => c.trim());
+else if (typeof variant.colors === "string" && variant.colors)
+  colorsArray = variant.colors.split(",").map(c => c.trim());
 
     setEditingVariant({ ...variant });
     setEditingVariantSizes(sizesArray);
@@ -716,7 +717,9 @@ function Products() {
                                 Sizes: {Array.isArray(variant.sizes) ? variant.sizes.join(", ") : variant.sizes}
                               </p>
                               <p className="text-sm text-gray-500">
-                                Colors: {Array.isArray(variant.colors) ? variant.colors.join(", ") : variant.colors}
+                               Colors: {Array.isArray(variant.color)
+  ? variant.color.join(", ")
+  : variant.color}
                               </p>
                               <p className="text-sm text-gray-500 mt-1">₹{variant.price} • Stock: {variant.stock}</p>
                             </div>
