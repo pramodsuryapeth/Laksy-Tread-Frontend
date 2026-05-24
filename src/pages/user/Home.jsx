@@ -11,34 +11,43 @@ function Home() {
   const [showLogin, setShowLogin] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const res = await getProducts();
-        console.log("Products fetched:", res.data);
-        console.log(import.meta.env.VITE_RAZORPAY_KEY);
-        console.log(import.meta.env.VITE_API_URL);
+useEffect(() => {
+  const fetchProducts = async () => {
+    try {
+      const res = await getProducts();
 
-        const allVariants = (res?.data || []).flatMap((product) =>
-  (product?.variants || []).map((variant) => ({
-    ...variant, // ✅ keep original Mongo _id
-    productName: product.name,
-    productId: product._id,
-    images: variant.images || [],
-  }))
-);
+      console.log("Products fetched:", res.data);
+      console.log(import.meta.env.VITE_RAZORPAY_KEY);
+      console.log(import.meta.env.VITE_API_URL);
 
-        setVariants(allVariants);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load products");
-      } finally {
-        setLoading(false);
-      }
-    };
+      const allVariants = (res?.data || [])
+        .flatMap((product) =>
+          (product?.variants || []).map((variant) => ({
+            ...variant,
+            productName: product.name,
+            productId: product._id,
+            images: variant.images || [],
+            createdAt: product.createdAt, // optional
+            updatedAt: product.updatedAt, // optional
+          }))
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) -
+            new Date(a.updatedAt || a.createdAt)
+        );
 
-    fetchProducts();
-  }, []);
+      setVariants(allVariants);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load products");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchProducts();
+}, []);
 
   // 🔐 PROTECTED ACTION (FINAL FIX)
 const handleProtectedAction = (callback) => {
