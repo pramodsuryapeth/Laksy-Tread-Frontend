@@ -232,7 +232,7 @@ function Checkout() {
         key: import.meta.env.VITE_RAZORPAY_KEY,
         amount: order.amount,
         currency: "INR",
-        name: "कलाकार PRINT STUDIO",
+        name: " The कला Trends",
         description: "Order Payment",
         order_id: order.id,
         config: {

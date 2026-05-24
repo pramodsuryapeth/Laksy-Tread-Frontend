@@ -476,7 +476,7 @@ function ProductDetails() {
                 {product.name}
               </h1>
               <div className="flex items-center gap-3 mt-2 flex-wrap">
-                <span className="text-sm text-gray-500">by कलाकार PRINT STUDIO</span>
+                <span className="text-sm text-gray-500">by The कला Trends</span>
                 <span className="w-1 h-1 bg-gray-300 rounded-full" />
                 <div className="flex items-center gap-2">
                   <StarRating rating={Math.round(avgRating)} />

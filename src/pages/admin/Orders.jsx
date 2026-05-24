@@ -1,453 +1,759 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import PageWrapper from "../../components/admin/PageWrapper";
 import Popup from "../../components/common/Popup";
-import { updateOrderStatus } from "../../services/ordreService";
+import { updateOrderStatus, getAllOrders } from "../../services/ordreService";
 import { getErrorMessage } from "../../utils/getErrorMessage";
-import { getAllOrders } from "../../services/ordreService";
 
-function Orders() {
-  const [orders, setOrders] = useState([]);
-  const [activeTab, setActiveTab] = useState("all"); // "all", "pickup", "delivery"
-  const [statusFilter, setStatusFilter] = useState("all"); // "all", "received", "confirmed", ...
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [popup, setPopup] = useState({ show: false, message: "", type: "success" });
+/* ─────────────────────────────────────────────────────────────────
+   BUG FIX: safe string coercion — orderId/_id can be number/object
+─────────────────────────────────────────────────────────────────── */
+const safeStr = (v) => (v === null || v === undefined ? "" : String(v));
 
-  // Fetch orders (dummy or real)
-useEffect(() => {
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const res = await getAllOrders();
-
-      // 🔥 SAFE FIX
-      const data = Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray(res)
-        ? res
-        : [];
-
-      setOrders(data);
-
-      console.log("ORDERS 👉", data); // debug
-    } catch (err) {
-      console.error("Orders fetch error:", err);
-      setOrders([]); // fallback
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchOrders();
-}, []);
-
-  const showPopup = (message, type = "success") => {
-    setPopup({ show: true, message, type });
-    setTimeout(() => setPopup((prev) => ({ ...prev, show: false })), 3000);
-  };
-
-  // Combined filter: delivery type + status
- const filteredOrders = (orders || []).filter((order) => {
-  if (activeTab !== "all" && order.deliveryType !== activeTab) return false;
-  if (statusFilter !== "all" && order.status !== statusFilter) return false;
-  return true;
-});
-
-const handleStatusChange = async (orderId, newStatus) => {
-  try {
-    const safeStatus = newStatus.trim().toLowerCase();
-
-    console.log("Sending 👉", orderId, safeStatus);
-
-    // ✅ FIX HERE
-    await updateOrderStatus(orderId, safeStatus);
-
-    setOrders((prev) =>
-      prev.map((o) =>
-        o._id === orderId ? { ...o, status: safeStatus } : o
-      )
-    );
-
-    showPopup(`Order status updated to “${safeStatus}”`, "success");
-
-  } catch (err) {
-    showPopup(getErrorMessage(err), "error");
-  }
+/* ─────────────────────────────────────────────────────────────────
+   STATUS CONFIG
+─────────────────────────────────────────────────────────────────── */
+const STATUS_CFG = {
+  received:   { label:"Received",   emoji:"📦", color:"#F59E0B", rgb:"245,158,11",  step:1 },
+  confirmed:  { label:"Confirmed",  emoji:"✅", color:"#3B82F6", rgb:"59,130,246",  step:2 },
+  ready:      { label:"Ready",      emoji:"🎯", color:"#A78BFA", rgb:"167,139,250", step:3 },
+  dispatched: { label:"Dispatched", emoji:"🚚", color:"#22D3EE", rgb:"34,211,238",  step:4 },
+  delivered:  { label:"Delivered",  emoji:"🏠", color:"#10B981", rgb:"16,185,129",  step:5 },
 };
+const SK = Object.keys(STATUS_CFG);
+const ALL_ST = ["all", ...SK];
 
-  const getStatusColor = (status) => ({
-    received: "bg-amber-100 text-amber-700",
-    confirmed: "bg-blue-100 text-blue-700",
-    ready: "bg-purple-100 text-purple-700",
-    dispatched: "bg-indigo-100 text-indigo-700",
-    delivered: "bg-emerald-100 text-emerald-700",
-  }[status] || "bg-gray-100 text-gray-700");
+function timeAgo(iso) {
+  if (!iso) return "";
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 60)    return `${Math.floor(s)}s ago`;
+  if (s < 3600)  return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+  return `${Math.floor(s/86400)}d ago`;
+}
 
-  const getDeliveryColor = (type) => type === "pickup" ? "bg-gray-100 text-gray-700" : "bg-sky-100 text-sky-700";
+/* ─────────────────────────────────────────────────────────────────
+   PROGRESS STRIP (card)
+─────────────────────────────────────────────────────────────────── */
+function ProgressStrip({ status }) {
+  const cur = STATUS_CFG[status]?.step ?? 0;
+  return (
+    <div style={{ display:"flex", gap:3, margin:"14px 0 16px" }}>
+      {SK.map((k) => {
+        const { color, step } = STATUS_CFG[k];
+        const filled = step <= cur;
+        const active = step === cur;
+        return (
+          <div key={k} style={{
+            flex:1, height:3, borderRadius:4,
+            background: filled ? color : "rgba(255,255,255,0.07)",
+            boxShadow: active ? `0 0 10px ${color}` : "none",
+            transition:"background .35s, box-shadow .35s",
+          }}/>
+        );
+      })}
+    </div>
+  );
+}
 
-  // Status options for the filter bar
-  const statuses = ["all", "received", "confirmed", "ready", "dispatched", "delivered"];
+/* ─────────────────────────────────────────────────────────────────
+   STATUS BADGE
+─────────────────────────────────────────────────────────────────── */
+function StatusBadge({ status }) {
+  const c = STATUS_CFG[status];
+  if (!c) return <span style={{ fontSize:11, color:"#9CA3AF", padding:"3px 8px", borderRadius:100, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)" }}>{status}</span>;
+  return (
+    <span style={{
+      display:"inline-flex", alignItems:"center", gap:5,
+      fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:100,
+      color: c.color,
+      background:`rgba(${c.rgb},0.12)`,
+      border:`1px solid rgba(${c.rgb},0.28)`,
+      whiteSpace:"nowrap",
+    }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:c.color, flexShrink:0, boxShadow:`0 0 5px ${c.color}` }}/>
+      {c.label}
+    </span>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   STAT CARD
+─────────────────────────────────────────────────────────────────── */
+function StatCard({ icon, label, value, color, rgb }) {
+  return (
+    <div style={{
+      position:"relative", background:"rgba(255,255,255,0.035)",
+      border:"1px solid rgba(255,255,255,0.07)", borderRadius:16,
+      padding:"18px 20px", overflow:"hidden",
+    }}>
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:color, borderRadius:"16px 16px 0 0" }}/>
+      <div style={{ position:"absolute", top:-30, right:-30, width:100, height:100,
+        background:`radial-gradient(circle, rgba(${rgb},0.15), transparent 70%)`, borderRadius:"50%", pointerEvents:"none" }}/>
+      <div style={{ fontSize:22, marginBottom:10 }}>{icon}</div>
+      <p style={{ fontSize:22, fontWeight:800, color:"#F1F2F6", fontFamily:"'DM Mono',monospace", lineHeight:1, marginBottom:5 }}>{value}</p>
+      <p style={{ fontSize:10.5, color:"#6B7280", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:700 }}>{label}</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ORDER CARD
+─────────────────────────────────────────────────────────────────── */
+function OrderCard({ order, onSelect, onStatusChange }) {
+  const [saving, setSaving] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const sc = STATUS_CFG[order.status];
+  const isDelivery = order.deliveryType === "delivery";
+
+  const handleChange = async (e) => {
+    e.stopPropagation();
+    setSaving(true);
+    await onStatusChange(order._id, e.target.value);
+    setSaving(false);
+  };
+
+  const shortId = safeStr(order.orderId || order._id).slice(-8);
 
   return (
-    <PageWrapper title="Orders">
-      {/* Header */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Orders</h1>
-          <p className="text-gray-500 text-sm mt-1">Manage all customer orders</p>
-        </div>
-        <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-100">
-          <span className="text-sm text-gray-600">Total Orders:</span>
-          <span className="ml-2 font-semibold text-gray-800">{orders.length}</span>
-        </div>
-      </div>
+    <div
+      onClick={() => onSelect(order)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position:"relative", overflow:"hidden", cursor:"pointer",
+        background: hovered ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.035)",
+        border:`1px solid ${hovered ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.07)"}`,
+        borderRadius:16,
+        boxShadow: hovered ? `0 20px 56px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.07)` : "0 2px 14px rgba(0,0,0,0.3)",
+        transform: hovered ? "translateY(-3px)" : "none",
+        transition:"all .22s ease",
+      }}
+    >
+      {/* accent top line */}
+      <div style={{ height:2, background: sc?.color ?? "#6366F1", borderRadius:"16px 16px 0 0", opacity:.9 }}/>
 
-      {/* ✅ Tab section: All / Pickup / Delivery */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="flex gap-6">
-          {[
-            { key: "all", label: "All Orders" },
-            { key: "pickup", label: "Pickup" },
-            { key: "delivery", label: "Delivery" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`pb-3 text-sm font-medium transition-colors ${
-                activeTab === tab.key
-                  ? "border-b-2 border-gray-900 text-gray-900"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* ✅ Status filter bar (scrollable on mobile) */}
-      <div className="mb-6 overflow-x-auto pb-2">
-        <div className="flex gap-2">
-          {statuses.map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium capitalize whitespace-nowrap transition ${
-                statusFilter === status
-                  ? "bg-gray-900 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {status === "all" ? "All status" : status}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Loading state */}
-      {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[...Array(2)].map((_, i) => (
-            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 animate-pulse">
-              <div className="flex justify-between">
-                <div className="space-y-2"><div className="h-4 bg-gray-200 rounded w-32"></div><div className="h-6 bg-gray-200 rounded w-24"></div></div>
-                <div className="h-6 bg-gray-200 rounded w-16"></div>
-              </div>
-              <div className="mt-4 flex justify-between"><div className="h-6 bg-gray-200 rounded w-20"></div><div className="h-8 bg-gray-200 rounded w-24"></div></div>
-              <div className="mt-3 h-8 bg-gray-200 rounded w-28"></div>
-            </div>
-          ))}
-        </div>
+      {/* glow */}
+      {hovered && sc && (
+        <div style={{ position:"absolute", top:-60, right:-60, width:180, height:180,
+          background:`radial-gradient(circle, rgba(${sc.rgb},0.14), transparent 65%)`,
+          borderRadius:"50%", pointerEvents:"none", transition:"opacity .3s" }}/>
       )}
 
-      {/* Empty state (after filters) */}
-      {!loading && filteredOrders.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
-          <svg className="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-          </svg>
-          <p className="text-gray-400 mt-2">No orders match the selected filters.</p>
-        </div>
-      )}
+      <div style={{ padding:"18px 20px 20px" }}>
 
-      {/* Orders Grid */}
-      {!loading && filteredOrders.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredOrders.map((order) => (
-            <div key={order._id} className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow overflow-hidden">
-              <div className="p-5">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{order.user.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1">₹{order.charges.finalAmount.toLocaleString()}</p>
-                  </div>
-                  <span className={`text-xs px-3 py-1 rounded-full capitalize font-medium ${getDeliveryColor(order.deliveryType)}`}>
-                    {order.deliveryType}
-                  </span>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <span className={`text-xs px-3 py-1 rounded-full font-medium capitalize ${getStatusColor(order.status)}`}>
-                    {order.status}
-                  </span>
-                  <select
-                    value={order.status}
-                    onChange={(e) => handleStatusChange(order._id, e.target.value)}
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-gray-300 outline-none"
-                  >
-                    <option value="received">📦 Received</option>
-                    <option value="confirmed">✅ Confirmed</option>
-                    <option value="ready">🎯 Ready</option>
-                    <option value="dispatched">🚚 Dispatched</option>
-                    <option value="delivered">🏠 Delivered</option>
-                  </select>
-                </div>
-
-                <button onClick={() => setSelectedOrder(order)} className="mt-4 text-sm text-gray-600 hover:text-gray-900 font-medium flex items-center gap-1 transition">
-                  View details
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Order Details Modal (unchanged, but kept for completeness) */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-800">Order Details</h3>
-              <button onClick={() => setSelectedOrder(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            <div className="p-6 space-y-5">
-          <div className="bg-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100">
-  
-  <h4 className="text-md font-semibold text-gray-800 mb-4">
-    👤 Customer Information
-  </h4>
-
-  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-
-    {/* Name */}
-    <div className="bg-white p-3 rounded-lg border">
-      <p className="text-gray-500 text-xs">Name</p>
-      <p className="font-semibold text-gray-800">
-        {selectedOrder?.user?.name || "N/A"}
-      </p>
-    </div>
-
-    {/* Phone */}
-    <div className="bg-white p-3 rounded-lg border">
-      <p className="text-gray-500 text-xs">Phone</p>
-      <p className="font-semibold text-gray-800">
-        {selectedOrder?.user?.phone || "N/A"}
-      </p>
-    </div>
-
-    {/* Address */}
-    <div className="bg-white p-3 rounded-lg border sm:col-span-2">
-      <p className="text-gray-500 text-xs">Address</p>
-      <p className="font-semibold text-gray-800">
-        {selectedOrder?.user?.address || "N/A"}
-      </p>
-    </div>
-
-    {/* City */}
-    <div className="bg-white p-3 rounded-lg border">
-      <p className="text-gray-500 text-xs">City</p>
-      <p className="font-semibold text-gray-800">
-        {selectedOrder?.user?.city || "N/A"}
-      </p>
-    </div>
-
-    {/* State */}
-    <div className="bg-white p-3 rounded-lg border">
-      <p className="text-gray-500 text-xs">State</p>
-      <p className="font-semibold text-gray-800">
-        {selectedOrder?.user?.state || "N/A"}
-      </p>
-    </div>
-
-    {/* Pincode */}
-    <div className="bg-white p-3 rounded-lg border sm:col-span-2">
-      <p className="text-gray-500 text-xs">Pincode</p>
-      <p className="font-semibold text-gray-800">
-        {selectedOrder?.user?.pincode || "N/A"}
-      </p>
-    </div>
-
-  </div>
-</div>
-             <div className="bg-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100">
-
-  <h4 className="text-md font-semibold text-gray-800 mb-4">
-    🧾 Order Summary
-  </h4>
-
-  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-
-    {/* Delivery Type */}
-    <div className="bg-white p-3 rounded-lg border">
-      <p className="text-gray-500 text-xs">Delivery Type</p>
-      <p className="font-semibold text-gray-800 capitalize">
-        {selectedOrder?.deliveryType || "N/A"}
-      </p>
-    </div>
-
-    {/* Total Amount */}
-    <div className="bg-white p-3 rounded-lg border">
-      <p className="text-gray-500 text-xs">Total Amount</p>
-      <p className="font-bold text-green-600">
-        ₹{selectedOrder?.charges?.finalAmount?.toLocaleString() || "0"}
-      </p>
-    </div>
-
-    {/* Order ID */}
-    <div className="bg-white p-3 rounded-lg border sm:col-span-2">
-      <p className="text-gray-500 text-xs">Order ID</p>
-      <p className="font-medium text-gray-800">
-        #{selectedOrder?.orderId || selectedOrder?._id?.slice(-6) || "N/A"}
-      </p>
-    </div>
-
-    {/* Date */}
-    <div className="bg-white p-3 rounded-lg border sm:col-span-2">
-      <p className="text-gray-500 text-xs">Order Date</p>
-      <p className="font-medium text-gray-800">
-        {selectedOrder?.createdAt
-          ? new Date(selectedOrder.createdAt).toLocaleString()
-          : "N/A"}
-      </p>
-    </div>
-
-  </div>
-</div>
-           <div className="bg-gray-50 rounded-2xl p-5 shadow-sm border">
-
-  <h4 className="text-md font-semibold text-gray-800 mb-4">
-    🛒 Order Items
-  </h4>
-
-  <div className="space-y-4">
-
-    {(selectedOrder?.items || []).map((item, idx) => (
-      <div key={idx} className="bg-white p-4 rounded-xl border space-y-3">
-
-        {/* 🔹 Top section */}
-        <div className="flex gap-4">
-          <img
-            src={item?.image || "https://via.placeholder.com/80"}
-            className="w-20 h-20 rounded-lg object-cover border"
-          />
-
-          <div className="flex-1">
-            <p className="font-semibold">{item?.name}</p>
-            <p className="text-xs text-gray-500">
-              Size: {item?.size || "-"} | Color: {item?.color || "-"}
+        {/* ── Header ── */}
+        <div style={{ display:"flex", gap:12, alignItems:"flex-start", marginBottom:0 }}>
+          <div style={{
+            width:40, height:40, borderRadius:12, flexShrink:0,
+            background:"linear-gradient(135deg,#6366F1,#8B5CF6)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:16, fontWeight:800, color:"#fff",
+          }}>
+            {(order.user?.name ?? "?").charAt(0).toUpperCase()}
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ fontSize:14, fontWeight:700, color:"#F1F2F6", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:2 }}>
+              {order.user?.name ?? "Customer"}
             </p>
-            <p className="text-sm">Qty: {item?.quantity}</p>
-            <p className="text-green-600 font-semibold">
-              ₹{item?.price}
-            </p>
+            <p style={{ fontSize:11, color:"#6B7280", fontFamily:"'DM Mono',monospace" }}>#{shortId}</p>
+          </div>
+          <div style={{ textAlign:"right", flexShrink:0 }}>
+            <span style={{
+              display:"inline-block", fontSize:10.5, fontWeight:700, padding:"3px 9px", borderRadius:100,
+              ...(isDelivery
+                ? { background:"rgba(59,130,246,0.12)", border:"1px solid rgba(59,130,246,0.25)", color:"#60A5FA" }
+                : { background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", color:"#9CA3AF" }
+              ),
+            }}>
+              {isDelivery ? "🚚 Delivery" : "🏪 Pickup"}
+            </span>
+            {order.createdAt && (
+              <p style={{ fontSize:10, color:"#6B7280", marginTop:5 }}>{timeAgo(order.createdAt)}</p>
+            )}
           </div>
         </div>
 
-        {/* 🎨 DESIGN IMAGE */}
-        {item?.designImage?.length > 0 && (
+        {/* ── Progress ── */}
+        <ProgressStrip status={order.status} />
+
+        {/* ── Footer: amount + controls ── */}
+        <div
+          style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}
+          onClick={e => e.stopPropagation()}
+        >
           <div>
-            <p className="text-xs text-gray-500 mb-1">Design Image</p>
-            <div className="flex gap-2 flex-wrap">
-              {item.designImage.map((img, i) => (
-                <img
-                  key={i}
-                  src={img}
-                  className="w-16 h-16 rounded border object-cover"
-                />
-              ))}
+            <p style={{ fontSize:10, color:"#6B7280", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:700, marginBottom:3 }}>Total</p>
+            <p style={{ fontSize:18, fontWeight:800, color:"#F1F2F6", fontFamily:"'DM Mono',monospace", lineHeight:1 }}>
+              ₹{(order.charges?.finalAmount ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <StatusBadge status={order.status} />
+            <div style={{ position:"relative" }}>
+              <select
+                value={order.status}
+                onChange={handleChange}
+                disabled={saving}
+                style={{
+                  appearance:"none", WebkitAppearance:"none",
+                  background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)",
+                  color:"#D1D5DB", fontSize:12, fontFamily:"'DM Sans',sans-serif",
+                  padding:"6px 28px 6px 10px", borderRadius:9, outline:"none",
+                  cursor: saving ? "wait" : "pointer",
+                  opacity: saving ? 0.5 : 1, transition:"border .18s",
+                }}
+              >
+                {SK.map(s => (
+                  <option key={s} value={s} style={{ background:"#1A1C25" }}>
+                    {STATUS_CFG[s].emoji} {STATUS_CFG[s].label}
+                  </option>
+                ))}
+              </select>
+              <svg style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", width:10, color:"#9CA3AF" }} fill="none" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </div>
           </div>
-        )}
-        {/* 📝 NOTE */}
-        {item?.note && (
-          <div className="bg-yellow-50 p-2 rounded border text-sm">
-            <span className="text-gray-500 text-xs">Note:</span>
-            <p className="font-medium text-gray-700">{item.note}</p>
+        </div>
+
+        {/* ── Thumbnails + view link ── */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:14, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ display:"flex" }}>
+            {(order.items ?? []).slice(0,4).map((item, i) => (
+              <img key={i} src={item.image ?? "https://via.placeholder.com/28"} alt=""
+                style={{ width:26, height:26, borderRadius:7, border:"2px solid #12141C", objectFit:"cover", marginLeft:i===0?0:-7 }}/>
+            ))}
+            {(order.items?.length ?? 0) > 4 && (
+              <div style={{ width:26, height:26, borderRadius:7, border:"2px solid #12141C", background:"rgba(255,255,255,0.08)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#9CA3AF", fontWeight:700, marginLeft:-7 }}>
+                +{order.items.length - 4}
+              </div>
+            )}
+            <span style={{ marginLeft:10, fontSize:11, color:"#6B7280", alignSelf:"center" }}>
+              {order.items?.length ?? 0} item{order.items?.length !== 1 ? "s" : ""}
+            </span>
           </div>
-        )}
-
-      </div>
-    ))}
-
- {selectedOrder?.uploadedImages?.length > 0 && (
-  <div>
-    <p className="text-xs text-gray-500 mb-2">Uploaded Files</p>
-
-    <div className="flex flex-col gap-2">
-      {selectedOrder.uploadedImages.map((file, i) => {
-        const fileName = file.split("/").pop().split("?")[0];
-        const isImage = file.match(/\.(jpg|jpeg|png|webp)$/i);
-
-        return (
-          <div
-            key={i}
-            className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded border"
+          <button
+            onClick={e => { e.stopPropagation(); onSelect(order); }}
+            style={{ background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif",
+              fontSize:12, fontWeight:700, color:"#818CF8", padding:0, transition:"color .15s" }}
+            onMouseEnter={e => e.target.style.color="#A5B4FC"}
+            onMouseLeave={e => e.target.style.color="#818CF8"}
           >
-            <div className="flex items-center gap-2">
-              {isImage && (
-                <img
-                  src={file}
-                  alt="preview"
-                  className="w-8 h-8 object-cover rounded"
-                />
-              )}
+            Details →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-              <p className="text-sm text-gray-700 truncate max-w-[150px]">
-                {fileName}
-              </p>
+/* ─────────────────────────────────────────────────────────────────
+   SKELETON
+─────────────────────────────────────────────────────────────────── */
+function SkeletonCard() {
+  return (
+    <div style={{ background:"rgba(255,255,255,0.035)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:16, overflow:"hidden" }}>
+      <div style={{ height:2, background:"rgba(255,255,255,0.07)" }}/>
+      <div style={{ padding:"18px 20px 20px" }}>
+        <div style={{ display:"flex", gap:12, marginBottom:14 }}>
+          <div style={{ width:40, height:40, borderRadius:12, ...SK_LINE }}/>
+          <div style={{ flex:1 }}>
+            <div style={{ height:12, borderRadius:6, width:"55%", marginBottom:8, ...SK_LINE }}/>
+            <div style={{ height:10, borderRadius:6, width:"35%", ...SK_LINE }}/>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:3, margin:"14px 0 16px" }}>
+          {[...Array(5)].map((_,i) => <div key={i} style={{ flex:1, height:3, borderRadius:4, ...SK_LINE }}/>)}
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:10 }}>
+          <div style={{ height:20, borderRadius:6, width:"25%", ...SK_LINE }}/>
+          <div style={{ height:32, borderRadius:9, width:"42%", ...SK_LINE }}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+const SK_LINE = { background:"linear-gradient(90deg,rgba(255,255,255,.05) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.05) 75%)", backgroundSize:"200% 100%", animation:"shimmer 1.5s infinite" };
+
+/* ─────────────────────────────────────────────────────────────────
+   MODAL TIMELINE
+─────────────────────────────────────────────────────────────────── */
+function ModalTimeline({ status }) {
+  const cur = STATUS_CFG[status]?.step ?? 0;
+  return (
+    <div style={{ display:"flex", overflowX:"auto", paddingBottom:4, gap:0 }}>
+      {SK.map((k, i) => {
+        const c = STATUS_CFG[k];
+        const done = c.step < cur, active = c.step === cur;
+        return (
+          <div key={k} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", position:"relative", minWidth:54 }}>
+            {i < SK.length - 1 && (
+              <div style={{
+                position:"absolute", top:18, left:"50%", width:"100%", height:2,
+                background: done||active ? c.color : "rgba(255,255,255,0.07)",
+                transition:"background .4s", zIndex:0,
+              }}/>
+            )}
+            <div style={{
+              position:"relative", zIndex:1, width:36, height:36, borderRadius:"50%",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:15,
+              background: active ? `rgba(${c.rgb},0.15)` : "rgba(255,255,255,0.05)",
+              border:`2px solid ${active ? c.color : done ? c.color+"55" : "rgba(255,255,255,0.1)"}`,
+              boxShadow: active ? `0 0 0 5px rgba(${c.rgb},0.15), 0 0 14px rgba(${c.rgb},0.4)` : "none",
+              transition:"all .3s",
+            }}>
+              {done ? <span style={{ color:c.color, fontSize:13, fontWeight:700 }}>✓</span> : c.emoji}
             </div>
-
-            <div className="flex gap-3">
-              {/* VIEW */}
-              <a
-                href={file}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 text-xs font-medium hover:underline"
-              >
-                View
-              </a>
-
-              {/* DOWNLOAD */}
-              <a
-                href={file.replace("/upload/", "/upload/fl_attachment/")}
-                download
-                className="text-green-600 text-xs font-medium hover:underline"
-              >
-                Download
-              </a>
-            </div>
+            <p style={{ fontSize:9.5, marginTop:7, textAlign:"center", fontWeight:700, whiteSpace:"nowrap",
+              color: active ? c.color : done ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.2)" }}>{c.label}</p>
           </div>
         );
       })}
     </div>
-  </div>
-)}
-
-  </div>
-</div>
-            </div>
-            <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex justify-end">
-              <button onClick={() => setSelectedOrder(null)} className="px-5 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <Popup show={popup.show} type={popup.type} message={popup.message} onClose={() => setPopup({ ...popup, show: false })} />
-    </PageWrapper>
   );
 }
 
-export default Orders;
+/* ─────────────────────────────────────────────────────────────────
+   INFO TILE
+─────────────────────────────────────────────────────────────────── */
+function InfoTile({ label, value, wide, accent }) {
+  return (
+    <div style={{
+      gridColumn: wide ? "1/-1" : undefined,
+      background: accent ? "rgba(16,185,129,0.07)" : "rgba(255,255,255,0.04)",
+      border:`1px solid ${accent ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.07)"}`,
+      borderRadius:10, padding:"11px 13px",
+    }}>
+      <p style={{ fontSize:10, color:"#6B7280", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:700, marginBottom:5 }}>{label}</p>
+      <p style={{ fontSize:13.5, fontWeight:600, color: accent ? "#6EE7B7" : "#F1F2F6", fontFamily: accent ? "'DM Mono',monospace" : undefined, wordBreak:"break-word" }}>{value ?? "—"}</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ORDER MODAL
+─────────────────────────────────────────────────────────────────── */
+function OrderModal({ order, onClose }) {
+  const ref = useRef();
+
+  useEffect(() => {
+    if (!order) return;
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, [order, onClose]);
+
+  useEffect(() => {
+    document.body.style.overflow = order ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [order]);
+
+  if (!order) return null;
+
+  const items    = order.items ?? [];
+  const uploaded = order.uploadedImages ?? [];
+  const sc       = STATUS_CFG[order.status];
+  const fullId   = safeStr(order.orderId || order._id);
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, zIndex:999,
+      background:"rgba(0,0,0,0.7)", backdropFilter:"blur(8px)",
+      display:"flex", alignItems:"flex-end", justifyContent:"center",
+      padding:0, animation:"fadeIn .22s ease",
+    }}>
+      {/* Desktop: center */}
+      <style>{`@media(min-width:640px){ .ord-modal-wrap{ align-items:center !important; padding:16px !important; } .ord-modal{ border-radius:20px !important; max-height:90vh !important; } }`}</style>
+      <div className="ord-modal-wrap" style={{ display:"flex", alignItems:"flex-end", justifyContent:"center", width:"100%", height:"100%", padding:0 }}>
+        <div ref={ref} className="ord-modal" style={{
+          background:"#14161E", border:"1px solid rgba(255,255,255,0.1)",
+          borderRadius:"24px 24px 0 0", width:"100%", maxWidth:680,
+          maxHeight:"94vh", display:"flex", flexDirection:"column",
+          boxShadow:"0 -8px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06)",
+          animation:"slideUp .3s cubic-bezier(.34,1.45,.64,1)",
+        }}>
+          {/* drag handle */}
+          <div style={{ display:"flex", justifyContent:"center", padding:"12px 0 0" }}>
+            <div style={{ width:38, height:4, borderRadius:4, background:"rgba(255,255,255,0.12)" }}/>
+          </div>
+
+          {/* accent line */}
+          {sc && <div style={{ height:2, background:sc.color, margin:"10px 20px 0", borderRadius:4 }}/>}
+
+          {/* header */}
+          <div style={{ padding:"16px 22px 14px", borderBottom:"1px solid rgba(255,255,255,0.07)", flexShrink:0 }}>
+            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
+              <div>
+                <h2 style={{ fontSize:17, fontWeight:800, color:"#F1F2F6", lineHeight:1 }}>Order Details</h2>
+                <p style={{ fontSize:11.5, color:"#6B7280", fontFamily:"'DM Mono',monospace", marginTop:5 }}>#{fullId}</p>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <StatusBadge status={order.status} />
+                <button
+                  onClick={onClose}
+                  style={{ width:32, height:32, borderRadius:9, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", color:"#9CA3AF", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* body */}
+          <div style={{ overflowY:"auto", padding:"18px 22px", flex:1 }}>
+
+            {/* timeline */}
+            <div style={{ marginBottom:24 }}>
+              <p style={SECT_TITLE}>📍 Order Progress</p>
+              <ModalTimeline status={order.status} />
+            </div>
+
+            {/* customer */}
+            <div style={{ marginBottom:22 }}>
+              <p style={SECT_TITLE}>👤 Customer Information</p>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <InfoTile label="Name"    value={order.user?.name} />
+                <InfoTile label="Phone"   value={order.user?.phone} />
+                <InfoTile label="Address" value={order.user?.address} wide />
+                <InfoTile label="City"    value={order.user?.city} />
+                <InfoTile label="State"   value={order.user?.state} />
+                <InfoTile label="Pincode" value={order.user?.pincode} />
+              </div>
+            </div>
+
+            {/* summary */}
+            <div style={{ marginBottom:22 }}>
+              <p style={SECT_TITLE}>🧾 Order Summary</p>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <InfoTile label="Delivery Type" value={order.deliveryType} />
+                <InfoTile label="Total Amount"  value={`₹${(order.charges?.finalAmount??0).toLocaleString()}`} accent />
+                <InfoTile label="Order ID"      value={`#${fullId}`} wide />
+                <InfoTile label="Order Date"    value={order.createdAt ? new Date(order.createdAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"}) : null} wide />
+              </div>
+            </div>
+
+            {/* items */}
+            <div style={{ marginBottom:22 }}>
+              <p style={SECT_TITLE}>
+                🛒 Order Items
+                <span style={{ marginLeft:8, fontSize:10, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", color:"#9CA3AF", padding:"2px 8px", borderRadius:100 }}>{items.length}</span>
+              </p>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {items.map((item, i) => (
+                  <div key={i} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:12, padding:14 }}>
+                    <div style={{ display:"flex", gap:12 }}>
+                      <img src={item.image ?? "https://via.placeholder.com/68"} alt={item.name}
+                        style={{ width:64, height:64, borderRadius:10, objectFit:"cover", border:"1px solid rgba(255,255,255,0.1)", flexShrink:0 }}/>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <p style={{ fontSize:14, fontWeight:700, color:"#F1F2F6", marginBottom:8, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</p>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:8 }}>
+                          {item.size  && <span style={TAG}>{item.size}</span>}
+                          {item.color && <span style={TAG}>{item.color}</span>}
+                          <span style={TAG}>Qty: {item.quantity}</span>
+                        </div>
+                        <p style={{ fontSize:15, fontWeight:800, color:"#10B981", fontFamily:"'DM Mono',monospace" }}>₹{Number(item.price??0).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    {item.note && (
+                      <div style={{ marginTop:10, display:"flex", gap:8, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.18)", borderRadius:8, padding:"9px 12px" }}>
+                        <span style={{ fontSize:13 }}>📝</span>
+                        <p style={{ fontSize:12, color:"#FCD34D", fontWeight:500 }}>{item.note}</p>
+                      </div>
+                    )}
+                    {item.designImage?.length > 0 && (
+                      <div style={{ marginTop:10 }}>
+                        <p style={{ fontSize:9.5, color:"#6B7280", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:700, marginBottom:8 }}>Design Images</p>
+                        <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                          {item.designImage.map((src, j) => (
+                            <a key={j} href={src} target="_blank" rel="noreferrer">
+                              <img src={src} alt="design" style={{ width:50, height:50, borderRadius:8, objectFit:"cover", border:"1px solid rgba(255,255,255,0.12)" }}
+                                onMouseEnter={e=>e.target.style.transform="scale(1.08)"}
+                                onMouseLeave={e=>e.target.style.transform="scale(1)"}
+                                style={{ width:50, height:50, borderRadius:8, objectFit:"cover", border:"1px solid rgba(255,255,255,0.12)", transition:"transform .2s" }}
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* uploaded files */}
+            {uploaded.length > 0 && (
+              <div style={{ marginBottom:22 }}>
+                <p style={SECT_TITLE}>📎 Uploaded Files</p>
+                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                  {uploaded.map((file, i) => {
+                    const name  = file.split("/").pop().split("?")[0];
+                    const isImg = /\.(jpg|jpeg|png|webp)$/i.test(file);
+                    return (
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:10, padding:"10px 13px" }}>
+                        {isImg
+                          ? <img src={file} alt="" style={{ width:34, height:34, borderRadius:7, objectFit:"cover", flexShrink:0 }}/>
+                          : <div style={{ width:34, height:34, borderRadius:7, background:"rgba(255,255,255,0.07)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>📄</div>
+                        }
+                        <p style={{ flex:1, fontSize:11.5, color:"#9CA3AF", fontFamily:"'DM Mono',monospace", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name}</p>
+                        <div style={{ display:"flex", gap:7, flexShrink:0 }}>
+                          <a href={file} target="_blank" rel="noreferrer" style={{ fontSize:11, fontWeight:700, color:"#818CF8", background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.22)", padding:"5px 11px", borderRadius:7, textDecoration:"none" }}>View</a>
+                          <a href={file.replace("/upload/","/upload/fl_attachment/")} download style={{ fontSize:11, fontWeight:700, color:"#6EE7B7", background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.2)", padding:"5px 11px", borderRadius:7, textDecoration:"none" }}>Save</a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* footer */}
+          <div style={{ padding:"14px 22px 20px", borderTop:"1px solid rgba(255,255,255,0.07)", flexShrink:0 }}>
+            <button
+              onClick={onClose}
+              style={{ width:"100%", padding:"12px", background:"linear-gradient(135deg,#6366F1,#8B5CF6)", color:"#fff", fontSize:13.5, fontWeight:700, border:"none", borderRadius:11, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", boxShadow:"0 4px 18px rgba(99,102,241,0.35)", transition:"opacity .15s" }}
+              onMouseEnter={e=>e.currentTarget.style.opacity="0.88"}
+              onMouseLeave={e=>e.currentTarget.style.opacity="1"}
+            >
+              Close Order
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SECT_TITLE = { fontSize:10.5, fontWeight:800, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 };
+const TAG = { fontSize:11, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", color:"#9CA3AF", padding:"2px 8px", borderRadius:6 };
+
+/* ─────────────────────────────────────────────────────────────────
+   MAIN
+─────────────────────────────────────────────────────────────────── */
+export default function Orders() {
+  const [orders, setOrders]               = useState([]);
+  const [activeTab, setActiveTab]         = useState("all");
+  const [statusFilter, setStatusFilter]   = useState("all");
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [loading, setLoading]             = useState(true);
+  const [search, setSearch]               = useState("");
+  const [popup, setPopup]                 = useState({ show:false, message:"", type:"success" });
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res  = await getAllOrders();
+        const data = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+        setOrders(data);
+      } catch (err) {
+        console.error(err);
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const showPopup = useCallback((message, type="success") => {
+    setPopup({ show:true, message, type });
+    setTimeout(() => setPopup(p => ({ ...p, show:false })), 3200);
+  }, []);
+
+  const handleStatusChange = useCallback(async (orderId, newStatus) => {
+    try {
+      const safe = newStatus.trim().toLowerCase();
+      await updateOrderStatus(orderId, safe);
+      setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status:safe } : o));
+      showPopup(`Updated to "${STATUS_CFG[safe]?.label ?? safe}"`, "success");
+    } catch (err) {
+      showPopup(getErrorMessage(err), "error");
+    }
+  }, [showPopup]);
+
+  /* ── BUG FIX: use safeStr for every string op ── */
+  const filtered = orders.filter(o => {
+    if (activeTab !== "all" && o.deliveryType !== activeTab) return false;
+    if (statusFilter !== "all" && o.status !== statusFilter)  return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const id   = safeStr(o.orderId || o._id).toLowerCase();
+      const name = safeStr(o.user?.name).toLowerCase();
+      if (!id.includes(q) && !name.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const revenue    = orders.reduce((a,o) => a + (o.charges?.finalAmount ?? 0), 0);
+  const pending    = orders.filter(o => ["received","confirmed","ready"].includes(o.status)).length;
+  const delivered  = orders.filter(o => o.status === "delivered").length;
+
+  return (
+    <>
+      <style>{GLOBAL_CSS}</style>
+      <PageWrapper title="Orders">
+        <div style={{ maxWidth:1380, margin:"0 auto", padding:"28px 18px 70px", fontFamily:"'DM Sans',sans-serif", animation:"fadeIn .35s ease" }}>
+
+          {/* ── HEADER ── */}
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, marginBottom:28, flexWrap:"wrap" }}>
+            <div>
+              <h1 style={{ fontSize:"clamp(20px,4vw,28px)", fontWeight:800, color:"#F1F2F6", display:"flex", alignItems:"center", gap:12, lineHeight:1, fontFamily:"'DM Sans',sans-serif" }}>
+                Orders
+                <span style={{ fontSize:12, fontWeight:700, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:"#9CA3AF", padding:"3px 10px", borderRadius:100, fontFamily:"'DM Mono',monospace" }}>{orders.length}</span>
+              </h1>
+              <p style={{ fontSize:13, color:"#6B7280", marginTop:6 }}>Track and manage all customer orders</p>
+            </div>
+            {/* search */}
+            <div style={{ position:"relative", width:"100%", maxWidth:300, minWidth:200, flexShrink:0 }}>
+              <svg style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", width:15, height:15, color:"#6B7280", pointerEvents:"none" }} fill="none" viewBox="0 0 20 20">
+                <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.6"/>
+                <path d="M15 15l-3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              </svg>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search name or order ID…"
+                style={{
+                  width:"100%", padding:"10px 36px 10px 36px",
+                  background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.09)",
+                  borderRadius:11, color:"#F1F2F6", fontSize:13,
+                  fontFamily:"'DM Sans',sans-serif", outline:"none", boxSizing:"border-box",
+                  transition:"border .18s",
+                }}
+                onFocus={e=>e.target.style.borderColor="rgba(99,102,241,0.45)"}
+                onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.09)"}
+              />
+              {search && (
+                <button onClick={() => setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"rgba(255,255,255,0.08)", border:"none", color:"#9CA3AF", width:20, height:20, borderRadius:6, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+              )}
+            </div>
+          </div>
+
+          {/* ── STAT CARDS ── */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:26 }}>
+            <StatCard icon="📋" label="Total Orders" value={orders.length}                       color="#6366F1" rgb="99,102,241" />
+            <StatCard icon="💰" label="Revenue"      value={`₹${revenue.toLocaleString()}`}      color="#10B981" rgb="16,185,129" />
+            <StatCard icon="⏳" label="Pending"      value={pending}                              color="#F59E0B" rgb="245,158,11" />
+            <StatCard icon="✅" label="Delivered"    value={delivered}                            color="#3B82F6" rgb="59,130,246" />
+          </div>
+
+          {/* ── DELIVERY TABS ── */}
+          <div style={{ marginBottom:18, overflowX:"auto", paddingBottom:2 }}>
+            <div style={{ display:"flex", gap:3, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:12, padding:4, width:"fit-content" }}>
+              {[
+                { key:"all",      label:"All Orders", count:orders.length },
+                { key:"pickup",   label:"🏪 Pickup",   count:orders.filter(o=>o.deliveryType==="pickup").length },
+                { key:"delivery", label:"🚚 Delivery",  count:orders.filter(o=>o.deliveryType==="delivery").length },
+              ].map(t => (
+                <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+                  display:"flex", alignItems:"center", gap:7, padding:"8px 16px",
+                  borderRadius:9, fontSize:12.5, fontWeight:700, whiteSpace:"nowrap",
+                  fontFamily:"'DM Sans',sans-serif", border:"none", cursor:"pointer", transition:"all .18s",
+                  color: activeTab===t.key ? "#F1F2F6" : "#9CA3AF",
+                  background: activeTab===t.key ? "rgba(255,255,255,0.10)" : "none",
+                }}>
+                  {t.label}
+                  <span style={{ fontSize:10, background:"rgba(255,255,255,0.08)", color: activeTab===t.key?"#fff":"#6B7280", padding:"1px 7px", borderRadius:100, fontFamily:"'DM Mono',monospace" }}>{t.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── STATUS PILLS ── */}
+          <div style={{ overflowX:"auto", paddingBottom:4, marginBottom:20, scrollbarWidth:"none" }}>
+            <div style={{ display:"flex", gap:6, width:"max-content" }}>
+              {ALL_ST.map(s => {
+                const c   = STATUS_CFG[s];
+                const cnt = s==="all" ? orders.length : orders.filter(o=>o.status===s).length;
+                const on  = statusFilter === s;
+                return (
+                  <button key={s} onClick={() => setStatusFilter(s)} style={{
+                    display:"flex", alignItems:"center", gap:5, padding:"7px 14px",
+                    borderRadius:100, fontSize:12, fontWeight:700, cursor:"pointer",
+                    whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", transition:"all .18s",
+                    background: on ? (s==="all" ? "rgba(255,255,255,0.12)" : `rgba(${c?.rgb},0.15)`) : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${on ? (s==="all" ? "rgba(255,255,255,0.22)" : `rgba(${c?.rgb},0.3)`) : "rgba(255,255,255,0.08)"}`,
+                    color: on ? (s==="all" ? "#fff" : c?.color) : "#9CA3AF",
+                  }}>
+                    {c && <span>{c.emoji}</span>}
+                    {s === "all" ? "All Status" : c.label}
+                    <span style={{ fontSize:9.5, background:"rgba(255,255,255,0.08)", padding:"1px 6px", borderRadius:100, fontFamily:"'DM Mono',monospace", color:"#9CA3AF" }}>{cnt}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── RESULT COUNT ── */}
+          {!loading && (
+            <p style={{ fontSize:11.5, color:"#6B7280", marginBottom:16, fontWeight:600 }}>
+              {filtered.length === 0
+                ? "No orders match the selected filters"
+                : filtered.length === orders.length
+                  ? `Showing all ${orders.length} orders`
+                  : `${filtered.length} of ${orders.length} orders`}
+            </p>
+          )}
+
+          {/* ── LOADING ── */}
+          {loading && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))", gap:14 }}>
+              {[...Array(6)].map((_,i) => <SkeletonCard key={i}/>)}
+            </div>
+          )}
+
+          {/* ── EMPTY ── */}
+          {!loading && filtered.length === 0 && (
+            <div style={{ textAlign:"center", padding:"72px 20px", background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:18 }}>
+              <p style={{ fontSize:46, marginBottom:14 }}>🔍</p>
+              <h3 style={{ fontSize:16, fontWeight:800, color:"#F1F2F6", marginBottom:8 }}>No orders found</h3>
+              <p style={{ fontSize:13, color:"#6B7280", marginBottom:20 }}>
+                {search ? `Nothing matched "${search}"` : "Try adjusting your filters"}
+              </p>
+              <button
+                onClick={() => { setActiveTab("all"); setStatusFilter("all"); setSearch(""); }}
+                style={{ padding:"9px 22px", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:10, color:"#D1D5DB", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}
+              >
+                Reset Filters
+              </button>
+            </div>
+          )}
+
+          {/* ── GRID ── */}
+          {!loading && filtered.length > 0 && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))", gap:14 }}>
+              {filtered.map(order => (
+                <OrderCard
+                  key={order._id}
+                  order={order}
+                  onSelect={setSelectedOrder}
+                  onStatusChange={handleStatusChange}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+        <Popup show={popup.show} type={popup.type} message={popup.message} onClose={() => setPopup(p => ({ ...p, show:false }))} />
+      </PageWrapper>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   GLOBAL CSS
+─────────────────────────────────────────────────────────────────── */
+const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;600;700&display=swap');
+  @keyframes fadeIn  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  @keyframes slideUp { from{opacity:0;transform:translateY(24px) scale(0.975)} to{opacity:1;transform:none} }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  ::-webkit-scrollbar        { width:4px; height:4px; }
+  ::-webkit-scrollbar-track  { background:transparent; }
+  ::-webkit-scrollbar-thumb  { background:rgba(255,255,255,0.1); border-radius:4px; }
+  input::placeholder         { color:#4B5563; }
+  @media(max-width:480px) {
+    div[style*="padding: 28px 18px"] { padding: 16px 12px 60px !important; }
+  }
+`;

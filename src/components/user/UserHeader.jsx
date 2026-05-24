@@ -96,7 +96,7 @@ function UserHeader() {
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 310 52"
-                  aria-label="कलाकार"
+                  aria-label="कला"
                   role="img"
                   className="w-auto h-[26px] sm:h-[30px] md:h-[38px]"
                   style={{ overflow: "visible", display: "block" }}
@@ -110,7 +110,7 @@ function UserHeader() {
                     fill={`url(#${GRAD_ID})`}
                     letterSpacing="1.5"
                   >
-                    कलाकार
+                    कला
                   </text>
                 </svg>
 
@@ -130,7 +130,7 @@ function UserHeader() {
                   }}
                   className="text-[7px] sm:text-[8.5px] md:text-[10px]"
                 >
-                  Print Studio
+                  trends
                 </span>
               </div>
             </div>
