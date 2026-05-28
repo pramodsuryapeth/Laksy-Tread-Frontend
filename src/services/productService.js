@@ -56,3 +56,28 @@ export const updateVariant = (data) =>
 // ❌ Delete Variant
 export const deleteVariant = (variantId) =>
   API.delete(`/product/variant/${variantId}`);
+
+export const applyDiscountToProduct = async (data) => {
+  const res = await API.put(
+    "/product/apply-discount",
+    data
+  );
+
+  return res.data;
+};
+
+// 🔥 REMOVE DISCOUNT FROM PRODUCT
+
+export const removeDiscountFromProduct = async (data) => {
+
+  const res = await API.put(
+
+    "/product/remove-discount",
+
+    data
+
+  );
+
+  return res.data;
+
+};

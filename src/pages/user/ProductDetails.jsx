@@ -259,20 +259,55 @@ function ProductDetails() {
     );
   };
 
+  const productDiscount =
+  product?.discount?.percentage || 0;
+
+const hasDiscount =
+  productDiscount > 0;
+
+const originalPrice =
+  selectedVariant?.price;
+
+const finalPrice =
+  hasDiscount
+    ? originalPrice -
+      (originalPrice * productDiscount) / 100
+    : originalPrice;
+
+const discountPercent =
+  productDiscount;
+
   // ---------- Protected actions (cart & buy) ----------
   const handleAddToCart = useCallback(() => {
     if (selectedVariant?.stock <= 0) return;
     const action = () => {
       addToCart({
-        productId: product._id,
-        variantId: selectedVariant._id,
-        name: product.name,
-        price: selectedVariant.price,
-        size: selectedSize,
-        color: selectedColor,
-        image: primaryImage,
-        quantity,
-      });
+
+  productId: product._id,
+
+  variantId: selectedVariant._id,
+
+  name: product.name,
+
+  // 🔥 FINAL PRICE
+  price: finalPrice,
+
+  // 🔥 DISCOUNT DATA
+  discount: productDiscount,
+
+  originalPrice: originalPrice,
+
+  finalPrice: finalPrice,
+
+  size: selectedSize,
+
+  color: selectedColor,
+
+  image: primaryImage,
+
+  quantity,
+
+});
       setPopupMsg("🛒 Item added to cart!");
       setShowPopup(true);
     };
@@ -286,89 +321,114 @@ function ProductDetails() {
     addToCart,
     primaryImage,
     handleProtectedAction,
+    finalPrice,
+    productDiscount,
+    originalPrice,
   ]);
 
-  const handleBuyNow = useCallback(() => {
-    if (selectedVariant?.stock <= 0) return;
-    const action = () => {
-      addToCart({
-        productId: product._id,
-        variantId: selectedVariant._id,
-        name: product.name,
-        price: selectedVariant.price,
-        size: selectedSize,
-        color: selectedColor,
-        image: primaryImage,
-        quantity,
-      });
-      navigate("/checkout", {
-        state: {
-          selectedItems: [
-            {
-              productId: product._id,
-              variantId: selectedVariant._id,
-              name: product.name,
-              price: selectedVariant.price,
-              size: selectedSize,
-              color: selectedColor,
-              image: primaryImage,
-              quantity,
-            },
-          ],
-          fromCart: false,
-        },
-      });
-    };
-    handleProtectedAction(action);
-  }, [
-    selectedVariant,
-    product,
-    selectedSize,
-    selectedColor,
-    quantity,
-    addToCart,
-    navigate,
-    primaryImage,
-    handleProtectedAction,
-  ]);
+const handleBuyNow = useCallback(() => {
 
-  const handleCustomize = useCallback(() => {
-    const action = () => {
-      navigate(`/customize/${product._id}`, {
-        state: {
-          product,
-          variant: selectedVariant,
-          selectedSize,
-          images: combinedImages,
-        },
-      });
-    };
-    handleProtectedAction(action);
-  }, [
-    product,
-    selectedVariant,
-    selectedSize,
-    combinedImages,
-    navigate,
-    handleProtectedAction,
-  ]);
+  if (selectedVariant?.stock <= 0) return;
+
+  const action = () => {
+
+    navigate("/checkout", {
+
+      state: {
+
+        selectedItems: [
+
+          {
+
+            productId: product._id,
+
+            variantId: selectedVariant._id,
+
+            name: product.name,
+
+            // 🔥 DISCOUNT PRICE
+            price: finalPrice,
+
+            size: selectedSize,
+
+            color: selectedColor,
+
+            image: primaryImage,
+
+            quantity,
+
+          },
+
+        ],
+
+        fromCart: false,
+
+      },
+
+    });
+
+  };
+
+  handleProtectedAction(action);
+
+}, [
+  selectedVariant,
+  product,
+  selectedSize,
+  selectedColor,
+  quantity,
+  navigate,
+  primaryImage,
+  handleProtectedAction,
+  finalPrice,
+]);
+
+ const handleCustomize = useCallback(() => {
+
+  const action = () => {
+
+    navigate(`/customize/${product._id}`, {
+
+      state: {
+
+        product,
+
+        variant: selectedVariant,
+
+        selectedSize,
+
+        // 🔥 DISCOUNT PRICE
+        price: finalPrice,
+
+        images: combinedImages,
+
+      },
+
+    });
+
+  };
+
+  handleProtectedAction(action);
+
+}, [
+  product,
+  selectedVariant,
+  selectedSize,
+  combinedImages,
+  navigate,
+  handleProtectedAction,
+  finalPrice,
+]);
 
   // Loading / error states
   if (loading) return <ProductDetailsSkeleton />;
   if (!product || !selectedVariant) return <Loading />;
 
   // Derived values for UI
-  const isOutOfStock = selectedVariant.stock === 0;
-  const stockLeft = selectedVariant.stock || 0;
+  const isOutOfStock = selectedVariant?.stock === 0;
+  const stockLeft = selectedVariant?.stock || 0;
   const isLowStock = stockLeft > 0 && stockLeft <= 10;
-  const discountPercent =
-    selectedVariant.mrp && selectedVariant.price
-      ? Math.round(
-          ((selectedVariant.mrp - selectedVariant.price) /
-            selectedVariant.mrp) *
-            100
-        )
-      : 0;
+
   const avgRating = reviews.length
     ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
     : 0;
@@ -496,22 +556,46 @@ function ProductDetails() {
 
             <div className="border-t border-b border-gray-100 py-4">
               <div className="flex items-baseline gap-3 flex-wrap">
-                <p className="text-3xl font-bold text-gray-900">
-                  ₹{selectedVariant.price?.toLocaleString("en-IN")}
-                </p>
-                {selectedVariant.mrp > selectedVariant.price && (
-                  <>
-                    <p className="text-base text-gray-400 line-through">
-                      ₹{selectedVariant.mrp.toLocaleString("en-IN")}
-                    </p>
-                    <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">
-                      Save ₹
-                      {(
-                        selectedVariant.mrp - selectedVariant.price
-                      ).toLocaleString("en-IN")}
-                    </span>
-                  </>
-                )}
+               <div className="flex items-baseline gap-3 flex-wrap">
+
+  {/* FINAL PRICE */}
+
+  <p className="text-3xl font-bold text-gray-900">
+
+    ₹{finalPrice?.toLocaleString("en-IN")}
+
+  </p>
+
+
+  {/* ORIGINAL PRICE */}
+
+  {hasDiscount && (
+
+    <>
+
+      <p className="text-lg text-red-500 line-through font-semibold">
+
+        ₹{originalPrice?.toLocaleString("en-IN")}
+
+      </p>
+
+
+      {/* SAVE BADGE */}
+
+      <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+
+        Save ₹
+        {(
+          originalPrice - finalPrice
+        ).toLocaleString("en-IN")}
+
+      </span>
+
+    </>
+
+  )}
+
+</div>
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 Inclusive of all taxes

@@ -3,6 +3,9 @@ import PageWrapper from "../../components/admin/PageWrapper";
 import Loader from "../../components/common/Loader";
 import Popup from "../../components/common/Popup";
 import {
+  getAllDiscounts,
+} from "../../services/discountService";
+import {
   getProducts,
   addVariant,
   deleteProduct,
@@ -10,6 +13,8 @@ import {
   getVariants,
   updateVariant,
   deleteVariant,
+  applyDiscountToProduct,
+  removeDiscountFromProduct, // ← ADD THIS to your productService.js
 } from "../../services/productService";
 import { getErrorMessage } from "../../utils/getErrorMessage";
 
@@ -47,26 +52,53 @@ const ImageCarousel = ({ images, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative max-w-4xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute -top-12 right-0 text-white text-2xl hover:text-gray-300">✕</button>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-4xl w-full mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute -top-12 right-0 text-white text-2xl hover:text-gray-300"
+        >
+          ✕
+        </button>
         <div
           className="relative bg-black rounded-2xl overflow-hidden"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          <img src={images[currentIndex]} alt="carousel" className="w-full h-[60vh] object-contain" />
+          <img
+            src={images[currentIndex]}
+            alt="carousel"
+            className="w-full h-[60vh] object-contain"
+          />
           {images.length > 1 && (
             <>
-              <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/75">‹</button>
-              <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/75">›</button>
+              <button
+                onClick={prev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/75"
+              >
+                ‹
+              </button>
+              <button
+                onClick={next}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/75"
+              >
+                ›
+              </button>
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
                 {images.map((_, idx) => (
                   <button
                     key={idx}
                     onClick={() => setCurrentIndex(idx)}
-                    className={`w-2 h-2 rounded-full transition-all ${idx === currentIndex ? "bg-white w-4" : "bg-white/50"}`}
+                    className={`w-2 h-2 rounded-full transition-all ${
+                      idx === currentIndex ? "bg-white w-4" : "bg-white/50"
+                    }`}
                   />
                 ))}
               </div>
@@ -84,6 +116,12 @@ function Products() {
   const [popup, setPopup] = useState({ show: false, message: "", type: "success" });
   const [confirmPopup, setConfirmPopup] = useState({ show: false, message: "", onConfirm: null });
 
+  const [discounts, setDiscounts] = useState([]);
+  const [selectedDiscount, setSelectedDiscount] = useState("");
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [isApplyingDiscount, setIsApplyingDiscount] = useState(false);
+  const [isRemovingDiscount, setIsRemovingDiscount] = useState(false); // ← NEW
+
   const [isAddVariantModalOpen, setIsAddVariantModalOpen] = useState(false);
   const [isViewVariantsModalOpen, setIsViewVariantsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -99,8 +137,8 @@ function Products() {
   const [variantForm, setVariantForm] = useState({
     sizes: [],
     sizeInput: "",
-    colors: [],       // changed from "color" (string) to array
-    colorInput: "",   // new input for adding colors one by one
+    colors: [],
+    colorInput: "",
     price: "",
     stock: "",
   });
@@ -129,6 +167,7 @@ function Products() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isVariantActionLoading, setIsVariantActionLoading] = useState(false);
 
+  // ── helpers ──────────────────────────────────────────────────────────────
   const showPopup = (message, type = "success") => {
     setPopup({ show: true, message, type });
     setTimeout(() => setPopup((prev) => ({ ...prev, show: false })), 3000);
@@ -138,19 +177,28 @@ function Products() {
     setConfirmPopup({ show: true, message, onConfirm });
   };
 
-  // Fetch products
+  const closeDiscountModal = () => {
+    setIsDiscountModalOpen(false);
+    setSelectedDiscount("");
+  };
+
+  // ── fetch ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const fetchData = async () => {
+    const init = async () => {
       try {
-        const res = await getProducts();
-        setProducts(res.data);
+        const [productsRes, discountsRes] = await Promise.all([
+          getProducts(),
+          getAllDiscounts(),
+        ]);
+        setProducts(productsRes.data);
+        setDiscounts(discountsRes.discounts);
       } catch (err) {
         showPopup(getErrorMessage(err), "error");
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    init();
   }, []);
 
   const refreshProducts = async () => {
@@ -172,7 +220,65 @@ function Products() {
     }
   };
 
-  // Product actions
+  // ── discount ──────────────────────────────────────────────────────────────
+  const handleAddDiscount = (product) => {
+    setSelectedProduct(product);
+    setSelectedDiscount("");
+    setIsDiscountModalOpen(true);
+  };
+
+  const handleApplyDiscount = async () => {
+    if (!selectedDiscount) {
+      showPopup("Please select a discount first", "error");
+      return;
+    }
+    setIsApplyingDiscount(true);
+    try {
+      await applyDiscountToProduct({
+        productId: selectedProduct._id,
+        discountId: selectedDiscount,
+      });
+      showPopup("Discount applied successfully!", "success");
+      closeDiscountModal();
+      refreshProducts();
+    } catch (error) {
+      showPopup(getErrorMessage(error), "error");
+    } finally {
+      setIsApplyingDiscount(false);
+    }
+  };
+
+  // ── NEW: Remove discount handler ──────────────────────────────────────────
+  const handleRemoveDiscount = async () => {
+    setIsRemovingDiscount(true);
+    try {
+      await removeDiscountFromProduct({ productId: selectedProduct._id });
+      showPopup("Discount removed successfully!", "success");
+      closeDiscountModal();
+      refreshProducts();
+    } catch (error) {
+      showPopup(getErrorMessage(error), "error");
+    } finally {
+      setIsRemovingDiscount(false);
+    }
+  };
+
+  // ── Helper: get active discount object for selected product ───────────────
+  // Works whether selectedProduct.discount is a populated object or just an ID string
+  const getActiveDiscount = () => {
+    if (!selectedProduct?.discount) return null;
+    // If populated as an object
+    if (typeof selectedProduct.discount === "object" && selectedProduct.discount._id) {
+      return selectedProduct.discount;
+    }
+    // If stored as an ID string, look it up from discounts list
+    if (typeof selectedProduct.discount === "string") {
+      return discounts.find((d) => d._id === selectedProduct.discount) || null;
+    }
+    return null;
+  };
+
+  // ── product actions ───────────────────────────────────────────────────────
   const handleViewVariants = async (product) => {
     setSelectedProduct(product);
     setSelectedProductId(product._id);
@@ -194,7 +300,7 @@ function Products() {
       try {
         await deleteProduct(id);
         await refreshProducts();
-        showPopup("Product deleted", "success");
+        showPopup("Product deleted successfully", "success");
       } catch (err) {
         showPopup(getErrorMessage(err), "error");
       } finally {
@@ -212,7 +318,7 @@ function Products() {
     }
   };
 
-  // Product image handlers for update modal
+  // ── product image handlers ────────────────────────────────────────────────
   const handleProductUpdateImagesChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -231,7 +337,7 @@ function Products() {
     setProductUpdatePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ---------- ADD VARIANT: manage sizes & colors as arrays ----------
+  // ── add variant: sizes & colors ───────────────────────────────────────────
   const addSize = () => {
     const trimmed = variantForm.sizeInput.trim();
     if (!trimmed) return;
@@ -239,18 +345,11 @@ function Products() {
       showPopup("Size already added", "error");
       return;
     }
-    setVariantForm({
-      ...variantForm,
-      sizes: [...variantForm.sizes, trimmed],
-      sizeInput: "",
-    });
+    setVariantForm({ ...variantForm, sizes: [...variantForm.sizes, trimmed], sizeInput: "" });
   };
 
   const removeSize = (index) => {
-    setVariantForm({
-      ...variantForm,
-      sizes: variantForm.sizes.filter((_, i) => i !== index),
-    });
+    setVariantForm({ ...variantForm, sizes: variantForm.sizes.filter((_, i) => i !== index) });
   };
 
   const addColor = () => {
@@ -260,36 +359,22 @@ function Products() {
       showPopup("Color already added", "error");
       return;
     }
-    setVariantForm({
-      ...variantForm,
-      colors: [...variantForm.colors, trimmed],
-      colorInput: "",
-    });
+    setVariantForm({ ...variantForm, colors: [...variantForm.colors, trimmed], colorInput: "" });
   };
 
   const removeColor = (index) => {
-    setVariantForm({
-      ...variantForm,
-      colors: variantForm.colors.filter((_, i) => i !== index),
-    });
+    setVariantForm({ ...variantForm, colors: variantForm.colors.filter((_, i) => i !== index) });
   };
 
   const handleAddVariant = (id) => {
     setSelectedProductId(id);
-    setVariantForm({
-      sizes: [],
-      sizeInput: "",
-      colors: [],
-      colorInput: "",
-      price: "",
-      stock: "",
-    });
+    setVariantForm({ sizes: [], sizeInput: "", colors: [], colorInput: "", price: "", stock: "" });
     setVariantImages([]);
     setVariantImagePreviews([]);
     setIsAddVariantModalOpen(true);
   };
 
-  // ---------- EDIT VARIANT: manage sizes & colors as arrays ----------
+  // ── edit variant: sizes & colors ──────────────────────────────────────────
   const addEditSize = () => {
     const trimmed = editSizeInput.trim();
     if (!trimmed) return;
@@ -321,16 +406,15 @@ function Products() {
   };
 
   const handleEditVariant = (variant) => {
-    // Convert variant.sizes to array (supports string or array)
     let sizesArray = [];
     if (Array.isArray(variant.sizes)) sizesArray = [...variant.sizes];
-    else if (typeof variant.sizes === "string" && variant.sizes) sizesArray = variant.sizes.split(",").map(s => s.trim());
+    else if (typeof variant.sizes === "string" && variant.sizes)
+      sizesArray = variant.sizes.split(",").map((s) => s.trim());
 
-    // Convert variant.colors to array (supports string or array)
     let colorsArray = [];
     if (Array.isArray(variant.colors)) colorsArray = [...variant.colors];
-else if (typeof variant.colors === "string" && variant.colors)
-  colorsArray = variant.colors.split(",").map(c => c.trim());
+    else if (typeof variant.colors === "string" && variant.colors)
+      colorsArray = variant.colors.split(",").map((c) => c.trim());
 
     setEditingVariant({ ...variant });
     setEditingVariantSizes(sizesArray);
@@ -366,9 +450,7 @@ else if (typeof variant.colors === "string" && variant.colors)
       const formData = new FormData();
       formData.append("productId", selectedProductId);
       formData.append("variantId", editingVariant._id);
-      // Send sizes as JSON string (array)
       formData.append("sizes", JSON.stringify(editingVariantSizes));
-      // Send colors as JSON string (array)
       formData.append("colors", JSON.stringify(editingVariantColors));
       formData.append("price", editingVariant.price);
       formData.append("stock", editingVariant.stock);
@@ -376,7 +458,7 @@ else if (typeof variant.colors === "string" && variant.colors)
       await updateVariant(formData);
       await fetchVariants(selectedProductId);
       setEditingVariant(null);
-      showPopup("Variant updated", "success");
+      showPopup("Variant updated successfully", "success");
     } catch (err) {
       showPopup(getErrorMessage(err), "error");
     } finally {
@@ -390,7 +472,7 @@ else if (typeof variant.colors === "string" && variant.colors)
       try {
         await deleteVariant(variantId);
         await fetchVariants(selectedProductId);
-        showPopup("Variant deleted", "success");
+        showPopup("Variant deleted successfully", "success");
       } catch (err) {
         showPopup(getErrorMessage(err), "error");
       } finally {
@@ -408,7 +490,7 @@ else if (typeof variant.colors === "string" && variant.colors)
     }
   };
 
-  // New variant image handlers
+  // ── new variant image handlers ────────────────────────────────────────────
   const handleVariantImagesChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -427,7 +509,7 @@ else if (typeof variant.colors === "string" && variant.colors)
     setVariantImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ADD VARIANT SUBMIT – sends sizes & colors as JSON arrays
+  // ── submit handlers ───────────────────────────────────────────────────────
   const handleVariantSubmit = async (e) => {
     e.preventDefault();
     if (variantForm.sizes.length === 0) {
@@ -454,7 +536,10 @@ else if (typeof variant.colors === "string" && variant.colors)
       await addVariant(formData);
       await refreshProducts();
       setIsAddVariantModalOpen(false);
-      showPopup(`Variant added with sizes: ${variantForm.sizes.join(", ")} | Colors: ${variantForm.colors.join(", ")}`, "success");
+      showPopup(
+        `Variant added — sizes: ${variantForm.sizes.join(", ")} | colors: ${variantForm.colors.join(", ")}`,
+        "success"
+      );
     } catch (err) {
       showPopup(getErrorMessage(err), "error");
     } finally {
@@ -478,7 +563,7 @@ else if (typeof variant.colors === "string" && variant.colors)
       await updateProduct(formData);
       await refreshProducts();
       setIsEditModalOpen(false);
-      showPopup("Product updated", "success");
+      showPopup("Product updated successfully", "success");
     } catch (err) {
       showPopup(getErrorMessage(err), "error");
     } finally {
@@ -490,7 +575,7 @@ else if (typeof variant.colors === "string" && variant.colors)
 
   return (
     <PageWrapper title="Products">
-      {/* Products table – unchanged but included for completeness */}
+      {/* ── Products table ── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100">
           <h2 className="text-xl font-semibold text-gray-800">All Products</h2>
@@ -529,15 +614,44 @@ else if (typeof variant.colors === "string" && variant.colors)
                   <p className="text-sm text-gray-500 line-clamp-2">{product.description || "—"}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => handleViewVariants(product)} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100">View Var.</button>
-                  <button onClick={() => handleAddVariant(product._id)} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800">+ Var.</button>
-                  <button onClick={() => handleEditProduct(product)} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-lg text-sm font-medium hover:bg-amber-100">Edit</button>
-                  <button onClick={() => handleDeleteProduct(product._id)} disabled={isDeleting} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100">Del</button>
+                  <button
+                    onClick={() => handleAddDiscount(product)}
+                    className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100"
+                  >
+                    Discount
+                  </button>
+                  <button
+                    onClick={() => handleViewVariants(product)}
+                    className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100"
+                  >
+                    View Var.
+                  </button>
+                  <button
+                    onClick={() => handleAddVariant(product._id)}
+                    className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800"
+                  >
+                    + Var.
+                  </button>
+                  <button
+                    onClick={() => handleEditProduct(product)}
+                    className="px-4 py-2 bg-amber-50 text-amber-600 rounded-lg text-sm font-medium hover:bg-amber-100"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProduct(product._id)}
+                    disabled={isDeleting}
+                    className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100"
+                  >
+                    Del
+                  </button>
                 </div>
               </div>
             );
           })}
-          {products.length === 0 && <div className="p-8 text-center text-gray-400">No products found</div>}
+          {products.length === 0 && (
+            <div className="p-8 text-center text-gray-400">No products found</div>
+          )}
         </div>
 
         {/* Desktop table */}
@@ -578,13 +692,42 @@ else if (typeof variant.colors === "string" && variant.colors)
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-gray-800">{product.name}</td>
-                    <td className="px-6 py-4 text-gray-500 max-w-xs truncate">{product.description || "—"}</td>
+                    <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
+                      {product.description || "—"}
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
-                        <button onClick={() => handleViewVariants(product)} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100">View Var.</button>
-                        <button onClick={() => handleAddVariant(product._id)} className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-800">+ Var.</button>
-                        <button onClick={() => handleEditProduct(product)} className="px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100">Edit</button>
-                        <button onClick={() => handleDeleteProduct(product._id)} disabled={isDeleting} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">Del</button>
+                        <button
+                          onClick={() => handleAddDiscount(product)}
+                          className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100"
+                        >
+                          Discount
+                        </button>
+                        <button
+                          onClick={() => handleViewVariants(product)}
+                          className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100"
+                        >
+                          View Var.
+                        </button>
+                        <button
+                          onClick={() => handleAddVariant(product._id)}
+                          className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-800"
+                        >
+                          + Var.
+                        </button>
+                        <button
+                          onClick={() => handleEditProduct(product)}
+                          className="px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProduct(product._id)}
+                          disabled={isDeleting}
+                          className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50"
+                        >
+                          Del
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -592,7 +735,9 @@ else if (typeof variant.colors === "string" && variant.colors)
               })}
               {products.length === 0 && (
                 <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center text-gray-400">No products found</td>
+                  <td colSpan="4" className="px-6 py-12 text-center text-gray-400">
+                    No products found
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -600,20 +745,132 @@ else if (typeof variant.colors === "string" && variant.colors)
         </div>
       </div>
 
-      {/* ========== MODALS ========== */}
+      {/* ══════════════ MODALS ══════════════ */}
 
-      {/* Product Carousel */}
-      {isProductCarouselOpen && (
-        <ImageCarousel images={selectedCarouselImages} onClose={() => setIsProductCarouselOpen(false)} />
+      {/* ── Discount Modal (with Remove Discount support) ── */}
+      {isDiscountModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-xl">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Manage Discount</h3>
+              <button
+                onClick={closeDiscountModal}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Sub-label */}
+            <p className="text-sm text-gray-500 mb-3">
+              Product:{" "}
+              <span className="font-medium text-gray-700">{selectedProduct?.name}</span>
+            </p>
+
+            {/* ── Active discount banner ── */}
+            {(() => {
+              const activeDiscount = getActiveDiscount();
+              if (!activeDiscount) return null;
+              return (
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 mb-4">
+                  <div>
+                    <p className="text-xs text-green-600 font-medium mb-0.5">Active discount</p>
+                    <p className="text-sm text-green-800 font-semibold">
+                      {activeDiscount.name}{" "}
+                      <span className="font-normal text-green-700">
+                        ({activeDiscount.percentage}% OFF)
+                      </span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleRemoveDiscount}
+                    disabled={isRemovingDiscount}
+                    className="ml-3 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {isRemovingDiscount ? "Removing..." : "Remove"}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Divider when discount exists */}
+            {getActiveDiscount() && (
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">or replace with</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+            )}
+
+            {/* Select */}
+            <select
+              value={selectedDiscount}
+              onChange={(e) => setSelectedDiscount(e.target.value)}
+              className="w-full border border-gray-200 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+            >
+              <option value="">— Select Discount —</option>
+              {discounts.map((item) => (
+                <option key={item._id} value={item._id}>
+                  {item.name} ({item.percentage}% OFF)
+                </option>
+              ))}
+            </select>
+
+            {discounts.length === 0 && (
+              <p className="text-xs text-amber-500 mt-2">
+                No discounts available. Create one first.
+              </p>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={closeDiscountModal}
+                className="flex-1 border border-gray-200 py-2 rounded-lg text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApplyDiscount}
+                disabled={!selectedDiscount || isApplyingDiscount}
+                className="flex-1 bg-black text-white py-2 rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isApplyingDiscount ? "Applying..." : getActiveDiscount() ? "Replace" : "Apply"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* View / Edit / Delete Variants Modal */}
+      {/* ── Product Carousel ── */}
+      {isProductCarouselOpen && (
+        <ImageCarousel
+          images={selectedCarouselImages}
+          onClose={() => setIsProductCarouselOpen(false)}
+        />
+      )}
+
+      {/* ── View / Edit / Delete Variants Modal ── */}
       {isViewVariantsModalOpen && selectedProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsViewVariantsModalOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsViewVariantsModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-800">Variants — {selectedProduct.name}</h3>
-              <button onClick={() => setIsViewVariantsModalOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <h3 className="text-lg font-semibold text-gray-800">
+                Variants — {selectedProduct.name}
+              </h3>
+              <button
+                onClick={() => setIsViewVariantsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
             </div>
             <div className="p-6 space-y-4">
               {variants.length > 0 ? (
@@ -621,12 +878,17 @@ else if (typeof variant.colors === "string" && variant.colors)
                   const variantImagesArr = getImageArray(variant);
                   const isEditing = editingVariant?._id === variant._id;
                   return (
-                    <div key={variant._id} className="border border-gray-100 rounded-xl p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div
+                      key={variant._id}
+                      className="border border-gray-100 rounded-xl p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
                       {isEditing ? (
                         <div className="space-y-3">
-                          {/* Sizes as chips */}
+                          {/* Sizes */}
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Sizes (add one by one)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Sizes (add one by one)
+                            </label>
                             <div className="flex gap-2">
                               <input
                                 type="text"
@@ -635,21 +897,38 @@ else if (typeof variant.colors === "string" && variant.colors)
                                 onChange={(e) => setEditSizeInput(e.target.value)}
                                 className="w-full px-3 py-2 border rounded-lg"
                               />
-                              <button type="button" onClick={addEditSize} className="px-3 bg-black text-white rounded">Add</button>
+                              <button
+                                type="button"
+                                onClick={addEditSize}
+                                className="px-3 bg-black text-white rounded"
+                              >
+                                Add
+                              </button>
                             </div>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {editingVariantSizes.map((s, idx) => (
-                                <div key={idx} className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm"
+                                >
                                   {s}
-                                  <button type="button" onClick={() => removeEditSize(idx)} className="text-red-500">✕</button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeEditSize(idx)}
+                                    className="text-red-500"
+                                  >
+                                    ✕
+                                  </button>
                                 </div>
                               ))}
                             </div>
                           </div>
 
-                          {/* Colors as chips */}
+                          {/* Colors */}
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Colors (add one by one)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Colors (add one by one)
+                            </label>
                             <div className="flex gap-2">
                               <input
                                 type="text"
@@ -658,13 +937,28 @@ else if (typeof variant.colors === "string" && variant.colors)
                                 onChange={(e) => setEditColorInput(e.target.value)}
                                 className="w-full px-3 py-2 border rounded-lg"
                               />
-                              <button type="button" onClick={addEditColor} className="px-3 bg-black text-white rounded">Add</button>
+                              <button
+                                type="button"
+                                onClick={addEditColor}
+                                className="px-3 bg-black text-white rounded"
+                              >
+                                Add
+                              </button>
                             </div>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {editingVariantColors.map((c, idx) => (
-                                <div key={idx} className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm"
+                                >
                                   {c}
-                                  <button type="button" onClick={() => removeEditColor(idx)} className="text-red-500">✕</button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeEditColor(idx)}
+                                    className="text-red-500"
+                                  >
+                                    ✕
+                                  </button>
                                 </div>
                               ))}
                             </div>
@@ -673,19 +967,25 @@ else if (typeof variant.colors === "string" && variant.colors)
                           <input
                             type="number"
                             value={editingVariant.price}
-                            onChange={(e) => setEditingVariant({ ...editingVariant, price: e.target.value })}
+                            onChange={(e) =>
+                              setEditingVariant({ ...editingVariant, price: e.target.value })
+                            }
                             className="w-full px-3 py-2 border rounded-lg"
                             placeholder="Price"
                           />
                           <input
                             type="number"
                             value={editingVariant.stock}
-                            onChange={(e) => setEditingVariant({ ...editingVariant, stock: e.target.value })}
+                            onChange={(e) =>
+                              setEditingVariant({ ...editingVariant, stock: e.target.value })
+                            }
                             className="w-full px-3 py-2 border rounded-lg"
                             placeholder="Stock quantity"
                           />
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Variant Images (max 5)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Variant Images (max 5)
+                            </label>
                             <input
                               type="file"
                               accept="image/*"
@@ -697,16 +997,37 @@ else if (typeof variant.colors === "string" && variant.colors)
                               <div className="mt-2 flex flex-wrap gap-2">
                                 {editVariantPreviews.map((preview, idx) => (
                                   <div key={idx} className="relative">
-                                    <img src={preview} className="w-16 h-16 rounded-lg object-cover border" />
-                                    <button type="button" onClick={() => removeEditVariantImage(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs">✕</button>
+                                    <img
+                                      src={preview}
+                                      className="w-16 h-16 rounded-lg object-cover border"
+                                      alt="preview"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeEditVariantImage(idx)}
+                                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs"
+                                    >
+                                      ✕
+                                    </button>
                                   </div>
                                 ))}
                               </div>
                             )}
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={handleUpdateVariant} disabled={isVariantActionLoading} className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm">Save</button>
-                            <button onClick={() => setEditingVariant(null)} className="px-3 py-1 bg-gray-300 rounded-lg text-sm">Cancel</button>
+                            <button
+                              onClick={handleUpdateVariant}
+                              disabled={isVariantActionLoading}
+                              className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm disabled:opacity-50"
+                            >
+                              {isVariantActionLoading ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                              onClick={() => setEditingVariant(null)}
+                              className="px-3 py-1 bg-gray-300 rounded-lg text-sm"
+                            >
+                              Cancel
+                            </button>
                           </div>
                         </div>
                       ) : (
@@ -714,18 +1035,36 @@ else if (typeof variant.colors === "string" && variant.colors)
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                             <div>
                               <p className="font-medium text-gray-800">
-                                Sizes: {Array.isArray(variant.sizes) ? variant.sizes.join(", ") : variant.sizes}
+                                Sizes:{" "}
+                                {Array.isArray(variant.sizes)
+                                  ? variant.sizes.join(", ")
+                                  : variant.sizes}
                               </p>
                               <p className="text-sm text-gray-500">
-                               Colors: {Array.isArray(variant.color)
-  ? variant.color.join(", ")
-  : variant.color}
+                                Colors:{" "}
+                                {Array.isArray(variant.colors)
+                                  ? variant.colors.join(", ")
+                                  : Array.isArray(variant.color)
+                                  ? variant.color.join(", ")
+                                  : variant.color || variant.colors}
                               </p>
-                              <p className="text-sm text-gray-500 mt-1">₹{variant.price} • Stock: {variant.stock}</p>
+                              <p className="text-sm text-gray-500 mt-1">
+                                ₹{variant.price} • Stock: {variant.stock}
+                              </p>
                             </div>
                             <div className="flex gap-2">
-                              <button onClick={() => handleEditVariant(variant)} className="text-amber-600 hover:text-amber-800 text-sm">Edit</button>
-                              <button onClick={() => handleDeleteVariant(variant._id)} className="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                              <button
+                                onClick={() => handleEditVariant(variant)}
+                                className="text-amber-600 hover:text-amber-800 text-sm"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteVariant(variant._id)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </div>
                           {variantImagesArr.length > 0 && (
@@ -750,30 +1089,42 @@ else if (typeof variant.colors === "string" && variant.colors)
                   );
                 })
               ) : (
-                <div className="text-center py-8 text-gray-400">No variants available for this product.</div>
+                <div className="text-center py-8 text-gray-400">
+                  No variants available for this product.
+                </div>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Variant Carousel */}
+      {/* ── Variant Carousel ── */}
       {isVariantCarouselOpen && (
-        <ImageCarousel images={selectedCarouselImages} onClose={() => setIsVariantCarouselOpen(false)} />
+        <ImageCarousel
+          images={selectedCarouselImages}
+          onClose={() => setIsVariantCarouselOpen(false)}
+        />
       )}
 
-      {/* Add Variant Modal – with sizes & colors as chips */}
+      {/* ── Add Variant Modal ── */}
       {isAddVariantModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-[95%] max-w-md max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-800">Add New Variant</h3>
-              <button onClick={() => setIsAddVariantModalOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <button
+                onClick={() => setIsAddVariantModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
             </div>
             <form onSubmit={handleVariantSubmit} className="p-6 space-y-4">
-              {/* Sizes as chips */}
+              {/* Sizes */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sizes (add one by one)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sizes (add one by one)
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -782,39 +1133,65 @@ else if (typeof variant.colors === "string" && variant.colors)
                     onChange={(e) => setVariantForm({ ...variantForm, sizeInput: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg"
                   />
-                  <button type="button" onClick={addSize} className="px-3 bg-black text-white rounded">Add</button>
+                  <button type="button" onClick={addSize} className="px-3 bg-black text-white rounded">
+                    Add
+                  </button>
                 </div>
                 {variantForm.sizes.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {variantForm.sizes.map((s, idx) => (
-                      <div key={idx} className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">
+                      <div
+                        key={idx}
+                        className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm"
+                      >
                         {s}
-                        <button type="button" onClick={() => removeSize(idx)} className="text-red-500">✕</button>
+                        <button
+                          type="button"
+                          onClick={() => removeSize(idx)}
+                          className="text-red-500"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Colors as chips */}
+              {/* Colors */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Colors (add one by one)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Colors (add one by one)
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="e.g., Red, Blue, Black"
                     value={variantForm.colorInput}
-                    onChange={(e) => setVariantForm({ ...variantForm, colorInput: e.target.value })}
+                    onChange={(e) =>
+                      setVariantForm({ ...variantForm, colorInput: e.target.value })
+                    }
                     className="w-full px-4 py-2 border rounded-lg"
                   />
-                  <button type="button" onClick={addColor} className="px-3 bg-black text-white rounded">Add</button>
+                  <button type="button" onClick={addColor} className="px-3 bg-black text-white rounded">
+                    Add
+                  </button>
                 </div>
                 {variantForm.colors.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {variantForm.colors.map((c, idx) => (
-                      <div key={idx} className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">
+                      <div
+                        key={idx}
+                        className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm"
+                      >
                         {c}
-                        <button type="button" onClick={() => removeColor(idx)} className="text-red-500">✕</button>
+                        <button
+                          type="button"
+                          onClick={() => removeColor(idx)}
+                          className="text-red-500"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -834,7 +1211,9 @@ else if (typeof variant.colors === "string" && variant.colors)
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Stock Quantity
+                </label>
                 <input
                   type="number"
                   placeholder="e.g., 50"
@@ -846,7 +1225,9 @@ else if (typeof variant.colors === "string" && variant.colors)
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Variant Images (max 5)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Variant Images (max 5)
+                </label>
                 <input
                   type="file"
                   accept="image/*"
@@ -858,8 +1239,18 @@ else if (typeof variant.colors === "string" && variant.colors)
                   <div className="mt-3 flex flex-wrap gap-2">
                     {variantImagePreviews.map((preview, idx) => (
                       <div key={idx} className="relative">
-                        <img src={preview} className="w-16 h-16 rounded-lg object-cover border" />
-                        <button type="button" onClick={() => removeVariantImage(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs">✕</button>
+                        <img
+                          src={preview}
+                          className="w-16 h-16 rounded-lg object-cover border"
+                          alt="preview"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeVariantImage(idx)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -867,9 +1258,21 @@ else if (typeof variant.colors === "string" && variant.colors)
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setIsAddVariantModalOpen(false)} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
-                <button type="submit" disabled={isVariantSubmitting} className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg disabled:opacity-50">
-                  {isVariantSubmitting ? "Adding..." : `Add Variant (${variantForm.sizes.length} size${variantForm.sizes.length !== 1 ? "s" : ""}, ${variantForm.colors.length} color${variantForm.colors.length !== 1 ? "s" : ""})`}
+                <button
+                  type="button"
+                  onClick={() => setIsAddVariantModalOpen(false)}
+                  className="flex-1 px-4 py-2 border rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVariantSubmitting}
+                  className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg disabled:opacity-50"
+                >
+                  {isVariantSubmitting
+                    ? "Adding..."
+                    : `Add Variant (${variantForm.sizes.length} size${variantForm.sizes.length !== 1 ? "s" : ""}, ${variantForm.colors.length} color${variantForm.colors.length !== 1 ? "s" : ""})`}
                 </button>
               </div>
             </form>
@@ -877,13 +1280,18 @@ else if (typeof variant.colors === "string" && variant.colors)
         </div>
       )}
 
-      {/* Edit Product Modal */}
+      {/* ── Edit Product Modal ── */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-[95%] max-w-md max-h-[90vh] overflow-y-auto">
             <div className="border-b border-gray-100 px-6 py-4 flex justify-between items-center">
               <h3 className="text-lg font-semibold">Edit Product</h3>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
             </div>
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
               <div>
@@ -908,7 +1316,9 @@ else if (typeof variant.colors === "string" && variant.colors)
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Product Images (max 5)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Product Images (max 5)
+                </label>
                 <input
                   type="file"
                   accept="image/*"
@@ -920,31 +1330,57 @@ else if (typeof variant.colors === "string" && variant.colors)
                   <div className="mt-3 flex flex-wrap gap-2">
                     {productUpdatePreviews.map((preview, idx) => (
                       <div key={idx} className="relative">
-                        <img src={preview} className="w-16 h-16 rounded-lg object-cover border" />
-                        <button type="button" onClick={() => removeProductUpdateImage(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs">✕</button>
+                        <img
+                          src={preview}
+                          className="w-16 h-16 rounded-lg object-cover border"
+                          alt="preview"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeProductUpdateImage(idx)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-gray-400 mt-1">Leave empty to keep existing images. Uploading new images will replace old ones.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Leave empty to keep existing images. Uploading new images will replace old ones.
+                </p>
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 border rounded-lg py-2">Cancel</button>
-                <button type="submit" disabled={isEditSubmitting} className="flex-1 bg-gray-900 text-white rounded-lg py-2">{isEditSubmitting ? "Updating..." : "Update"}</button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1 border rounded-lg py-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isEditSubmitting}
+                  className="flex-1 bg-gray-900 text-white rounded-lg py-2 disabled:opacity-50"
+                >
+                  {isEditSubmitting ? "Updating..." : "Update"}
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Confirmation Popup */}
+      {/* ── Confirmation Popup ── */}
       {confirmPopup.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <p className="text-gray-800 mb-6">{confirmPopup.message}</p>
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setConfirmPopup({ show: false, message: "", onConfirm: null })}
+                onClick={() =>
+                  setConfirmPopup({ show: false, message: "", onConfirm: null })
+                }
                 className="px-4 py-2 border rounded-lg hover:bg-gray-50"
               >
                 Cancel
@@ -960,8 +1396,13 @@ else if (typeof variant.colors === "string" && variant.colors)
         </div>
       )}
 
-      {/* Global Toast Popup */}
-      <Popup show={popup.show} type={popup.type} message={popup.message} onClose={() => setPopup({ ...popup, show: false })} />
+      {/* ── Global Toast Popup ── */}
+      <Popup
+        show={popup.show}
+        type={popup.type}
+        message={popup.message}
+        onClose={() => setPopup({ ...popup, show: false })}
+      />
     </PageWrapper>
   );
 }

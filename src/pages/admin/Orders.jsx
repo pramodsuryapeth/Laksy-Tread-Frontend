@@ -823,7 +823,7 @@ export default function Orders() {
           {/* ── LOADING ── */}
           {loading && (
             <div style={{ display:"grid",
-              gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))", gap:14 }}>
+             gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,310px),1fr))", gap:14 }}>
               {[...Array(6)].map((_,i) => <SkeletonCard key={i}/>)}
             </div>
           )}
@@ -855,7 +855,7 @@ export default function Orders() {
           {/* ── GRID ── */}
           {!loading && filtered.length > 0 && (
             <div style={{ display:"grid",
-              gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))", gap:14 }}>
+              gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,310px),1fr))", gap:14 }}>
               {filtered.map(order => (
                 <OrderCard
                   key={order._id}

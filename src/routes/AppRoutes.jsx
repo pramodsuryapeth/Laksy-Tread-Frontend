@@ -8,6 +8,8 @@ import AddProduct from "../pages/admin/AddProduct";
 import Products from "../pages/admin/Products";
 import Orders from "../pages/admin/Orders";
 import AdminRoute from "../components/common/AdminRoute";
+import AddDiscount from "../pages/admin/AddDiscount";
+import DiscountList from "../pages/admin/DiscountList";
 
 /* ================= USER ================= */
 import UserLayout from "../layout/UserLayout";
@@ -79,6 +81,38 @@ const AppRoutes = () => {
           </AdminRoute>
         }
       />
+
+      <Route
+  path="/admin/add-discount"
+  element={
+    <AdminRoute>
+      <AdminLayout>
+        <AddDiscount />
+      </AdminLayout>
+    </AdminRoute>
+  }
+/>
+  <Route
+  path="/admin/edit-discount/:id"
+  element={
+    <AdminRoute>
+      <AdminLayout>
+        <AddDiscount />
+      </AdminLayout>
+    </AdminRoute>
+  }
+/>
+
+<Route
+  path="/admin/discount-list"
+  element={
+    <AdminRoute>
+      <AdminLayout>
+        <DiscountList />
+      </AdminLayout>
+    </AdminRoute>
+  }
+/>
 
       {/* ================= USER ROUTES ================= */}
 

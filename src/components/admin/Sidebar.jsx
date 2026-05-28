@@ -7,6 +7,7 @@ import {
   ShoppingCart,
   LogOut,
   X,
+  Tags,
 } from "lucide-react";
 
 function Sidebar({ isMobileOpen, onClose }) {
@@ -29,6 +30,11 @@ function Sidebar({ isMobileOpen, onClose }) {
       path: "/admin/add-product",
       icon: <PlusCircle size={18} />,
     },
+{
+  name: "Discount List",
+  path: "/admin/discount-list",
+  icon: <Tags size={18} />,
+},
     {
       name: "Orders",
       path: "/admin/orders",
