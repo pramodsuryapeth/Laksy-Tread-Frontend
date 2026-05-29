@@ -10,6 +10,7 @@ import Orders from "../pages/admin/Orders";
 import AdminRoute from "../components/common/AdminRoute";
 import AddDiscount from "../pages/admin/AddDiscount";
 import DiscountList from "../pages/admin/DiscountList";
+import FailedOrders from "../pages/admin/FailedOrders";
 
 /* ================= USER ================= */
 import UserLayout from "../layout/UserLayout";
@@ -109,6 +110,16 @@ const AppRoutes = () => {
     <AdminRoute>
       <AdminLayout>
         <DiscountList />
+      </AdminLayout>
+    </AdminRoute>
+  }
+/>
+<Route
+  path="/admin/failed-orders"
+  element={
+    <AdminRoute>
+      <AdminLayout>
+        <FailedOrders />
       </AdminLayout>
     </AdminRoute>
   }

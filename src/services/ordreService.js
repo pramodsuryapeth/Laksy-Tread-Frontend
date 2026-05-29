@@ -21,6 +21,10 @@ export const getAllOrders = () => {
   return API.get("/order/all");
 };
 
+export const getAllFailedOrders = () => {
+  return API.get("/order/failed");
+}
+
 //
 // 🔍 SINGLE ORDER
 //
@@ -38,6 +42,8 @@ export const updateOrderStatus = (orderId, status) => {
   });
 };
 
+
+
 //
 // 💰 GET REVENUE (ADMIN)
 //
@@ -53,3 +59,13 @@ export const verifyPayment = (data) => {
   return API.post("/order/verify-payment", data );
 };
 
+export const updatePaymentStatus = (orderId, paymentStatus) => {
+  return API.put("/order/payment-status", {
+    orderId,
+    paymentStatus
+  });
+};
+
+export const cleanupPendingOrders = () => {
+  return API.get("/order/cleanup-pending");
+};

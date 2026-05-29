@@ -8,6 +8,7 @@ import {
   LogOut,
   X,
   Tags,
+  AlertTriangle,
 } from "lucide-react";
 
 function Sidebar({ isMobileOpen, onClose }) {
@@ -40,7 +41,14 @@ function Sidebar({ isMobileOpen, onClose }) {
       path: "/admin/orders",
       icon: <ShoppingCart size={18} />,
     },
+
+     {
+      name: "Failed Orders",
+      path: "/admin/failed-orders",
+      icon: <AlertTriangle size={18} />,
+    },
   ];
+
 
   const handleLogout = () => {
     localStorage.removeItem("user");

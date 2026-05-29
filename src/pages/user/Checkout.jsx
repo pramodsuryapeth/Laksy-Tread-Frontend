@@ -201,10 +201,16 @@ function Checkout() {
 
   // ---------- Calculate Charges ----------
   const calculateCharges = () => {
-    const productTotal = orderData.items.reduce(
-      (acc, item) => acc + item.price * item.quantity,
+   const productTotal = Number(
+  orderData.items
+    .reduce(
+      (acc, item) =>
+        acc +
+        Number(item.price) * Number(item.quantity),
       0
-    );
+    )
+    .toFixed(2)
+);
     const delivery = orderData.deliveryType === "delivery" ? 60 : 0;
   const gst = Number(((productTotal + delivery) * 0.02).toFixed(2));
 
@@ -220,88 +226,146 @@ function Checkout() {
   };
 
   // ---------- Razorpay Payment ----------
-  const handlePayment = async () => {
-    setIsProcessing(true);
-    try {
-      const res = await API.post("/order/razorpay-order", {
-        amount: orderData.charges.finalAmount,
-      });
-      const order = res.data;
+ const handlePayment = async () => {
+  setIsProcessing(true);
 
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY,
-        amount: order.amount,
-        currency: "INR",
-        name: " The कला Trends",
-        description: "Order Payment",
-        order_id: order.id,
-        config: {
-          display: {
-            blocks: {
-              upi: {
-                name: "Pay using UPI",
-                instruments: [{ method: "upi" }],
-              },
+  try {
+    // 1️⃣ Save temp order
+    console.log(orderData.items);
+   const checkoutRes = await API.post("/order/checkout", {
+  name: orderData.address.name,
+  email: orderData.address.email,
+  phone: orderData.address.phone,
+
+  address: orderData.address.addressLine,
+  city: orderData.address.city,
+  state: orderData.address.state,
+  pincode: orderData.address.pincode,
+
+  deliveryType: orderData.deliveryType,
+
+  items: orderData.items.map((item) => ({
+    productId: item.productId,
+    variantId: item.variantId,
+
+    name: item.name,
+   price: Number(Number(item.price).toFixed(2)),
+    quantity: item.quantity,
+
+    image: item.image,
+
+    size: item.size,
+    color: item.color,
+
+    designImage: item.designImage,
+
+    uploadedImages: item.uploadedImages || [],
+
+    note: item.note || "",
+  })),
+
+  uploadedFiles: orderData.uploadedFiles,
+  note: orderData.note,
+});
+
+    const savedOrder = checkoutRes.data.order;
+
+    // 2️⃣ Create Razorpay order
+   const res = await API.post("/order/razorpay-order", {
+  amount: savedOrder.charges.finalAmount,
+  orderId: savedOrder.orderId,
+});
+
+    const order = res.data;
+
+    const options = {
+      key: import.meta.env.VITE_RAZORPAY_KEY,
+      amount: order.amount,
+      currency: "INR",
+      name: "The कला Trends",
+      description: "Order Payment",
+      order_id: order.id,
+
+      config: {
+        display: {
+          blocks: {
+            upi: {
+              name: "Pay using UPI",
+              instruments: [{ method: "upi" }],
             },
-            sequence: ["block.upi"],
-            preferences: { show_default_blocks: true },
+          },
+          sequence: ["block.upi"],
+          preferences: {
+            show_default_blocks: true,
           },
         },
-        prefill: {
-          name: orderData.address.name || "Guest",
-          email: orderData.address.email || "test@example.com",
-          contact: orderData.address.phone || "9999999999",
-        },
-        handler: async (response) => {
-          try {
-            await API.post("/order/verify-payment", {
-              ...response,
-              orderData: {
-                user: orderData.address,
-                items: orderData.items.map((item) => ({
-                  productId: item.productId,
-                  variantId: item.variantId,
-                  name: item.name,
-                  price: item.price,
-                  quantity: item.quantity,
-                  image: item.image,
-                  size: item.size,
-                  color: item.color,
-                  designImage: item.designImage,
-                })),
-                uploadedFiles: orderData.uploadedFiles,
-                note: orderData.note,
-                deliveryType: orderData.deliveryType,
-                charges: orderData.charges,
-                clearCart: orderData.fromCart,
-              },
-            });
-            setStep(7);
-            showPopup("Payment successful! Order confirmed 🎉", "success");
-          } catch (err) {
-            console.error(err);
-            showPopup("Payment verification failed.", "error");
-          } finally {
-            setIsProcessing(false);
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setIsProcessing(false);
-            showPopup("Payment cancelled", "warning");
-          },
-        },
-        theme: { color: "#000" },
-      };
+      },
 
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (err) {
-      console.error(err);
-      showPopup("Failed to initiate payment. Please try again.", "error");
-      setIsProcessing(false);
-    }
-  };
+      prefill: {
+        name: orderData.address.name || "Guest",
+        email: orderData.address.email || "test@example.com",
+        contact: orderData.address.phone || "9999999999",
+      },
+
+      handler: async (response) => {
+        try {
+          await API.post("/order/verify-payment", {
+            ...response,
+
+            orderData: {
+              orderId: savedOrder.orderId,
+              clearCart: orderData.fromCart,
+            },
+          });
+
+          setStep(7);
+
+          showPopup(
+            "Payment successful! Order confirmed 🎉",
+            "success"
+          );
+        } catch (err) {
+          console.error(err);
+
+          showPopup(
+            "Payment verification failed.",
+            "error"
+          );
+        } finally {
+          setIsProcessing(false);
+        }
+      },
+
+      modal: {
+        ondismiss: () => {
+          setIsProcessing(false);
+
+          showPopup(
+            "Payment cancelled",
+            "warning"
+          );
+        },
+      },
+
+      theme: {
+        color: "#000",
+      },
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
+
+  } catch (err) {
+    console.error(err);
+
+    showPopup(
+      "Failed to initiate payment. Please try again.",
+      "error"
+    );
+
+    setIsProcessing(false);
+  }
+};
 
   const updateAddressField = (field, value) => {
     setOrderData((prev) => ({
